@@ -1,6 +1,7 @@
 """Tests for diffsan."""
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ from diffsan.contracts.errors import ErrorCode, ReviewerError
 from diffsan.run import RUN_ARTIFACT_NAME
 
 runner = CliRunner()
+ANSI_OR_CSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 
 
 def test_version() -> None:
@@ -29,9 +31,10 @@ def test_cli_version() -> None:
 
 def test_cli_help() -> None:
     """Test CLI help output."""
-    result = runner.invoke(app, ["--help"])
+    result = runner.invoke(app, ["--help"], color=False)
     assert result.exit_code == 0
-    assert "--dry-run" in result.stdout
+    plain = ANSI_OR_CSI_RE.sub("", result.stdout)
+    assert re.search(r"--\s*dry\s*-\s*run", plain)
 
 
 def test_cli_dry_run_writes_artifacts(tmp_path: Path) -> None:
