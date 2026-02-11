@@ -7,6 +7,10 @@ Artifacts are critical for debugging CI runs and for auditing prompt/output hand
 - **Never store raw secrets** in artifacts. Redaction must occur before prompting.
 - Prefer **plain text** for prompt and raw agent output, and **JSON** for structured reports.
 - Events should be **structured JSONL** (one JSON object per line) for easy grep and post-processing.
+- Emit concise console lines for key events during execution:
+  - info/warn events to stdout
+  - error events to stderr
+  - include enough context to diagnose failures without opening artifacts
 
 ---
 
@@ -193,6 +197,7 @@ Fields:
 
 - Do not log raw diffs or prompts to stdout by default.
 - `events.jsonl` may contain file paths and counts; avoid dumping large bodies.
+- Console event lines should stay compact and summarize key scalar fields only.
 
 ---
 
