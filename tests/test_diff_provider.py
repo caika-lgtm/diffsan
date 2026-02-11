@@ -71,3 +71,119 @@ def test_get_diff_missing_ci_env(monkeypatch: pytest.MonkeyPatch) -> None:
         get_diff(ci=True)
 
     assert error.value.error_info.error_code == ErrorCode.DIFF_FETCH_FAILED
+
+
+def test_get_diff_non_ci_mode_rejected() -> None:
+    """Standalone mode is not implemented for diff provider."""
+    with pytest.raises(ReviewerError) as error:
+        get_diff(ci=False)
+
+    assert error.value.error_info.error_code == ErrorCode.DIFF_FETCH_FAILED
+
+
+def test_get_diff_missing_head_sha(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Missing CI_COMMIT_SHA fails with DIFF_FETCH_FAILED."""
+    monkeypatch.setenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "main")
+    monkeypatch.delenv("CI_COMMIT_SHA", raising=False)
+
+    with pytest.raises(ReviewerError) as error:
+        get_diff(ci=True)
+
+    assert error.value.error_info.error_code == ErrorCode.DIFF_FETCH_FAILED
+    assert error.value.error_info.context.get("missing_env") == "CI_COMMIT_SHA"
+
+
+def test_get_diff_falls_back_to_local_target_ref(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If origin/<target> fails, provider retries with local target branch name."""
+    monkeypatch.setenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "main")
+    monkeypatch.setenv("CI_COMMIT_SHA", "deadbeef")
+
+    calls = {"count": 0}
+
+    def _run(
+        command: list[str],
+        *,
+        check: bool,
+        text: bool,
+        capture_output: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        _ = check, text, capture_output
+        calls["count"] += 1
+        if calls["count"] == 1:
+            assert command[-1] == "origin/main...deadbeef"
+            return subprocess.CompletedProcess(
+                command,
+                1,
+                stdout="",
+                stderr="missing origin ref",
+            )
+        assert command[-1] == "main...deadbeef"
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=(
+                "preamble\n"
+                "diff --git a/bin.dat b/bin.dat\n"
+                "Binary files a/bin.dat and b/bin.dat differ\n"
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr(subprocess, "run", _run)
+
+    bundle = get_diff(ci=True)
+
+    assert calls["count"] == 2
+    assert bundle.files[0].path == "bin.dat"
+    assert bundle.files[0].is_binary is True
+
+
+def test_get_diff_wraps_subprocess_oserror(monkeypatch: pytest.MonkeyPatch) -> None:
+    """OSError during git invocation is normalized into ReviewerError."""
+    monkeypatch.setenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "main")
+    monkeypatch.setenv("CI_COMMIT_SHA", "deadbeef")
+
+    def _boom(
+        command: list[str],
+        *,
+        check: bool,
+        text: bool,
+        capture_output: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        _ = command, check, text, capture_output
+        raise OSError("git unavailable")
+
+    monkeypatch.setattr(subprocess, "run", _boom)
+
+    with pytest.raises(ReviewerError) as error:
+        get_diff(ci=True)
+
+    assert error.value.error_info.error_code == ErrorCode.DIFF_FETCH_FAILED
+
+
+def test_get_diff_raises_after_all_target_refs_fail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Both candidate refs failing should raise the final normalized error."""
+    monkeypatch.setenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "main")
+    monkeypatch.setenv("CI_COMMIT_SHA", "deadbeef")
+
+    def _run(
+        command: list[str],
+        *,
+        check: bool,
+        text: bool,
+        capture_output: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        _ = check, text, capture_output
+        return subprocess.CompletedProcess(command, 1, stdout="", stderr="fatal: fail")
+
+    monkeypatch.setattr(subprocess, "run", _run)
+
+    with pytest.raises(ReviewerError) as error:
+        get_diff(ci=True)
+
+    assert error.value.error_info.error_code == ErrorCode.DIFF_FETCH_FAILED
+    assert "target ref 'main'" in error.value.error_info.message
