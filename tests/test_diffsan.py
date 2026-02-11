@@ -1,9 +1,15 @@
 """Tests for diffsan."""
 
+import json
+from pathlib import Path
+
+import pytest
 from typer.testing import CliRunner
 
 from diffsan import __version__
 from diffsan.cli import app
+from diffsan.contracts.errors import ErrorCode, ReviewerError
+from diffsan.run import RUN_ARTIFACT_NAME
 
 runner = CliRunner()
 
@@ -21,15 +27,56 @@ def test_cli_version() -> None:
     assert __version__ in result.stdout
 
 
-def test_cli_hello_default() -> None:
-    """Test CLI hello command with default argument."""
-    result = runner.invoke(app, ["hello"])
+def test_cli_help() -> None:
+    """Test CLI help output."""
+    result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    assert "Hello, World!" in result.stdout
+    assert "--dry-run" in result.stdout
 
 
-def test_cli_hello_with_name() -> None:
-    """Test CLI hello command with custom name."""
-    result = runner.invoke(app, ["hello", "Test"])
+def test_cli_dry_run_writes_artifacts(tmp_path: Path) -> None:
+    """Dry run writes milestone-0 required artifacts."""
+    workdir = tmp_path / ".diffsan"
+    result = runner.invoke(
+        app,
+        ["--ci", "--dry-run", "--workdir", str(workdir)],
+    )
+
     assert result.exit_code == 0
-    assert "Hello, Test!" in result.stdout
+    assert (workdir / "events.jsonl").exists()
+    run_json = workdir / RUN_ARTIFACT_NAME
+    assert run_json.exists()
+
+    payload = json.loads(run_json.read_text(encoding="utf-8"))
+    assert payload["ok"] is True
+    assert payload["skipped"] is False
+    assert payload["error"] is None
+
+
+def test_cli_failure_writes_run_json_and_nonzero(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Failures still persist structured run.json and return non-zero."""
+
+    def _boom(**_: object) -> None:
+        raise ReviewerError(
+            "synthetic failure",
+            error_code=ErrorCode.DIFF_FETCH_FAILED,
+            context={"step": "test"},
+        )
+
+    import diffsan.run as run_module
+
+    monkeypatch.setattr(run_module, "_run_pipeline", _boom)
+    workdir = tmp_path / ".diffsan"
+
+    result = runner.invoke(
+        app,
+        ["--ci", "--dry-run", "--workdir", str(workdir)],
+    )
+
+    assert result.exit_code == 1
+    payload = json.loads((workdir / RUN_ARTIFACT_NAME).read_text(encoding="utf-8"))
+    assert payload["ok"] is False
+    assert payload["error"]["error_code"] == ErrorCode.DIFF_FETCH_FAILED
