@@ -71,3 +71,59 @@ def test_parse_and_validate_wrapped_result_error() -> None:
         parse_and_validate(json.dumps(wrapped))
 
     assert error.value.error_info.error_code == ErrorCode.AGENT_OUTPUT_INVALID
+
+
+def test_parse_and_validate_schema_validation_error() -> None:
+    """JSON that does not match ReviewOutput raises AGENT_OUTPUT_INVALID."""
+    with pytest.raises(ReviewerError) as error:
+        parse_and_validate("{}")
+
+    assert error.value.error_info.error_code == ErrorCode.AGENT_OUTPUT_INVALID
+
+
+def test_parse_and_validate_wrapped_result_dict_payload() -> None:
+    """Cursor envelope with object result payload is supported."""
+    wrapped = {
+        "type": "result",
+        "subtype": "success",
+        "is_error": False,
+        "result": {
+            "summary_markdown": "wrapped-dict-ok",
+            "findings": [],
+            "meta": {"agent": "cursor", "token_usage": {}, "truncated": False},
+        },
+    }
+
+    review = parse_and_validate(json.dumps(wrapped))
+
+    assert review.summary_markdown == "wrapped-dict-ok"
+
+
+def test_parse_and_validate_wrapped_result_invalid_json_string() -> None:
+    """Invalid JSON inside envelope result is reported as AGENT_OUTPUT_INVALID."""
+    wrapped = {
+        "type": "result",
+        "subtype": "success",
+        "is_error": False,
+        "result": "{not-json",
+    }
+
+    with pytest.raises(ReviewerError) as error:
+        parse_and_validate(json.dumps(wrapped))
+
+    assert error.value.error_info.error_code == ErrorCode.AGENT_OUTPUT_INVALID
+
+
+def test_parse_and_validate_wrapped_result_unsupported_type() -> None:
+    """Non-str/non-dict envelope result payloads are rejected."""
+    wrapped = {
+        "type": "result",
+        "subtype": "success",
+        "is_error": False,
+        "result": 123,
+    }
+
+    with pytest.raises(ReviewerError) as error:
+        parse_and_validate(json.dumps(wrapped))
+
+    assert error.value.error_info.error_code == ErrorCode.AGENT_OUTPUT_INVALID
