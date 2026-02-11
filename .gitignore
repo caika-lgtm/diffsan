@@ -145,3 +145,4 @@ Thumbs.db
 !.env.example
 .uv-cache/
 .cache/
+.diffsan/
