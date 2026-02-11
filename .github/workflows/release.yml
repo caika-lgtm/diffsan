@@ -1,0 +1,12 @@
+
+# Release workflow disabled (include_pypi_publish is false)
+name: Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "PyPI publishing is disabled"
