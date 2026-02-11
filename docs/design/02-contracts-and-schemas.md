@@ -61,7 +61,7 @@ Fields are grouped for clarity. Exact defaults are implementation-defined but sh
   "skip": { "skip_on_auto_merge": true },
   "agent": {
     "agent": "cursor",
-    "cursor_command": "cursor",
+    "cursor_command": null,
     "max_json_retries": 3,
     "json_repair_prompt": "Return ONLY valid JSON that matches the schema.",
     "verbosity": "medium",

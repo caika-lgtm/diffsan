@@ -71,7 +71,7 @@ class SkipConfig(StrictModel):
 
 class AgentConfig(StrictModel):
     agent: str = "cursor"
-    cursor_command: str = "cursor"
+    cursor_command: str | None = None
     max_json_retries: int = 3
     json_repair_prompt: str = "Return ONLY valid JSON that matches the schema."
     verbosity: Literal["low", "medium", "high"] = "medium"
