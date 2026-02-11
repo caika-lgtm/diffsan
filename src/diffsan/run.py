@@ -62,7 +62,7 @@ def run(options: RunOptions) -> RunResult:
         artifacts = ArtifactStore(options.workdir)
     except OSError as exc:
         fallback = ArtifactStore(DEFAULT_WORKDIR)
-        fallback_events = EventLogger(fallback.path(EVENTS_ARTIFACT_NAME))
+        fallback_events = EventLogger(fallback.path(EVENTS_ARTIFACT_NAME), echo=True)
         failure = RunResult(
             ok=False,
             skipped=False,
@@ -86,7 +86,7 @@ def run(options: RunOptions) -> RunResult:
         fallback.write_json(RUN_ARTIFACT_NAME, failure)
         return failure
 
-    events = EventLogger(artifacts.path(EVENTS_ARTIFACT_NAME))
+    events = EventLogger(artifacts.path(EVENTS_ARTIFACT_NAME), echo=True)
     config = AppConfig(mode=ModeConfig(ci=options.ci))
 
     run_result = RunResult(

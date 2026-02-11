@@ -46,6 +46,10 @@ def test_cli_dry_run_writes_artifacts(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 0
+    assert "[diffsan] run.started" in result.stdout
+    assert "[diffsan] config.loaded" in result.stdout
+    assert "[diffsan] skip.decided" in result.stdout
+    assert "[diffsan] run.finished | ok=True" in result.stdout
     assert (workdir / "events.jsonl").exists()
     run_json = workdir / RUN_ARTIFACT_NAME
     assert run_json.exists()
@@ -80,6 +84,25 @@ def test_cli_failure_writes_run_json_and_nonzero(
     )
 
     assert result.exit_code == 1
+    assert "[diffsan] run.started" in result.output
+    assert "[diffsan] run.finished | ok=False" in result.output
+    assert "[diffsan] error.raised" in result.output
+    assert "error_code=DIFF_FETCH_FAILED" in result.output
+    assert "message=synthetic failure" in result.output
     payload = json.loads((workdir / RUN_ARTIFACT_NAME).read_text(encoding="utf-8"))
     assert payload["ok"] is False
     assert payload["error"]["error_code"] == ErrorCode.DIFF_FETCH_FAILED
+
+
+def test_cli_non_ci_failure_prints_events(tmp_path: Path) -> None:
+    """Non-CI runs still surface key error events in console output."""
+    workdir = tmp_path / ".diffsan"
+    result = runner.invoke(app, ["--workdir", str(workdir)])
+
+    assert result.exit_code == 1
+    assert "[diffsan] run.started" in result.output
+    assert "[diffsan] config.loaded" in result.output
+    assert "[diffsan] error.raised" in result.output
+    assert "error_code=DIFF_FETCH_FAILED" in result.output
+    assert "supports CI mode only" in result.output
+    assert "[diffsan] run.finished | ok=False" in result.output
