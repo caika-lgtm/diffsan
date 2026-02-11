@@ -1,5 +1,9 @@
 .PHONY: verify fix lint format format-check type-check install test test-cov test-matrix test-matrix-cov pysentry docs docs-serve
 
+# Keep uv caches inside the project (sandbox-safe)
+export UV_CACHE_DIR := $(CURDIR)/.uv-cache
+export XDG_CACHE_HOME := $(CURDIR)/.cache
+
 # Verify - check everything without making changes
 verify: lint format-check type-check
 

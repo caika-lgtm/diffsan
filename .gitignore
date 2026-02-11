@@ -143,3 +143,5 @@ Thumbs.db
 *.log
 .env.*
 !.env.example
+.uv-cache/
+.cache/
