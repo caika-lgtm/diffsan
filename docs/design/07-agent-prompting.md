@@ -76,6 +76,9 @@ Cursor CLI does not guarantee structured output. `diffsan` must:
 
 1. Capture raw stdout/stderr.
 2. Attempt to parse JSON strictly.
+   - If using `cursor-agent --output-format json`, unwrap the outer envelope and
+     parse the nested `result` JSON string before validating against
+     `ReviewOutput`.
 3. Validate with Pydantic.
 4. If parsing/validation fails, retry with a repair prompt.
 
