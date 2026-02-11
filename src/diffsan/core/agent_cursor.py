@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shlex
 import subprocess
 from dataclasses import dataclass
@@ -26,7 +27,7 @@ class AgentAttempt:
 
 def run_cursor_once(prompt: str, config: AppConfig) -> AgentAttempt:
     """Execute one agent attempt and return raw outputs."""
-    command = shlex.split(config.agent.cursor_command)
+    command = _build_cursor_command(config.agent.cursor_command)
     if not command:
         raise ReviewerError(
             "Agent command is empty",
@@ -65,3 +66,14 @@ def run_cursor_once(prompt: str, config: AppConfig) -> AgentAttempt:
         exit_code=result.returncode,
         duration_ms=duration_ms,
     )
+
+
+def _build_cursor_command(cursor_cmd: str | None) -> list[str]:
+    if cursor_cmd:
+        return shlex.split(cursor_cmd)
+
+    command = ["cursor-agent", "--print", "--output-format", "json"]
+    api_key = os.getenv("CURSOR_API_KEY")
+    if api_key:
+        command.extend(["--api-key", api_key])
+    return command
