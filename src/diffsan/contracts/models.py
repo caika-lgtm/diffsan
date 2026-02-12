@@ -257,6 +257,7 @@ class ReviewOutput(StrictModel):
 
 
 class DiscussionPosition(StrictModel):
+    position_type: Literal["text"] = "text"
     base_sha: str
     head_sha: str
     start_sha: str

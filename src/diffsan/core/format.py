@@ -191,6 +191,7 @@ def _finding_to_discussion(
             f"{finding.body_markdown.strip()}"
         ),
         position=DiscussionPosition(
+            position_type="text",
             base_sha=base_sha,
             head_sha=head_sha,
             start_sha=start_sha,
