@@ -136,6 +136,7 @@ Post a single MR note containing:
   - timezone is configurable via CLI (`--note-timezone`), default `SGT`
 - a collapsible truncation section describing what was omitted (only when truncation occurred)
 - if secrets were detected during scan, include a warning section (never include raw secret)
+- if posting errors occurred during the run (for example invalid discussion positions), include a collapsible "Run errors" section with brief, non-secret error summaries
 
 ### Endpoint (typical)
 
