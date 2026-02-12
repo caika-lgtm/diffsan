@@ -286,6 +286,7 @@ Each finding must include:
       "line_end": 106,
       "body_markdown": "**[security/high]** ...",
       "position": {
+        "position_type": "text",
         "base_sha": "aaa111",
         "head_sha": "bbb222",
         "start_sha": "aaa111",
