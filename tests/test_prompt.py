@@ -12,7 +12,11 @@ from diffsan.contracts.models import (
     TruncationItem,
     TruncationReport,
 )
-from diffsan.core.prompt import build_agent_request, build_json_repair_prompt
+from diffsan.core.prompt import (
+    _bounded_excerpt,
+    build_agent_request,
+    build_json_repair_prompt,
+)
 
 
 def test_build_agent_request_with_prior_truncation_and_redaction() -> None:
@@ -122,3 +126,52 @@ def test_build_json_repair_prompt_includes_errors_and_excerpt() -> None:
     assert "- findings.0.line_start: Field required" in prompt
     assert "- meta.agent: Input should be a valid string" in prompt
     assert "...[truncated]..." in prompt
+
+
+def test_build_json_repair_prompt_falls_back_to_error_message() -> None:
+    """When structured errors are unusable, prompt falls back to base message."""
+    config = AppConfig()
+    validation_error = ReviewerError(
+        "Agent output failed schema validation",
+        error_code=ErrorCode.AGENT_OUTPUT_INVALID,
+        context={"errors": [123, {"loc": ("meta",), "msg": 7}]},
+    )
+
+    prompt = build_json_repair_prompt(
+        config=config,
+        validation_error=validation_error,
+        previous_output="   ",
+    )
+
+    assert "- Agent output failed schema validation" in prompt
+    assert "Previous output excerpt:\n<<<\n<empty>\n>>>" in prompt
+
+
+def test_build_json_repair_prompt_handles_root_error_locations() -> None:
+    """Non-path and empty-path locations are rendered as <root>."""
+    config = AppConfig()
+    validation_error = ReviewerError(
+        "Agent output failed schema validation",
+        error_code=ErrorCode.AGENT_OUTPUT_INVALID,
+        context={
+            "errors": [
+                {"loc": "plain-string-loc", "msg": "bad loc"},
+                {"loc": [{}], "msg": "empty path"},
+            ]
+        },
+    )
+
+    prompt = build_json_repair_prompt(
+        config=config,
+        validation_error=validation_error,
+        previous_output="{}",
+    )
+
+    assert "- <root>: bad loc" in prompt
+    assert "- <root>: empty path" in prompt
+
+
+def test_bounded_excerpt_short_budget_returns_marker_prefix() -> None:
+    """Tiny excerpt budget returns a truncated marker prefix."""
+    excerpt = _bounded_excerpt("abcdef", max_chars=3)
+    assert excerpt == "\n.."

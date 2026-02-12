@@ -5,11 +5,15 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
+import pytest
+
 import diffsan.run as run_module
 from diffsan.contracts.errors import ErrorCode
 from diffsan.contracts.models import (
+    AgentConfig,
     AgentRequest,
     AgentRequestMeta,
+    AppConfig,
     DiffBundle,
     DiffRef,
     DiffSource,
@@ -21,6 +25,8 @@ from diffsan.contracts.models import (
     TruncationReport,
 )
 from diffsan.core.agent_cursor import AgentAttempt
+from diffsan.io.artifacts import ArtifactStore
+from diffsan.io.logging import EventLogger
 from diffsan.run import RunOptions
 
 if TYPE_CHECKING:
@@ -243,3 +249,125 @@ def test_run_milestone2_retry_exhaustion_sets_agent_output_invalid(
     run_payload = json.loads((workdir / "run.json").read_text(encoding="utf-8"))
     assert run_payload["ok"] is False
     assert run_payload["error"]["error_code"] == ErrorCode.AGENT_OUTPUT_INVALID
+
+
+def test_run_milestone2_retries_passthrough_non_output_invalid_error(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Non-AGENT_OUTPUT_INVALID parser errors are raised immediately."""
+    artifacts = ArtifactStore(tmp_path / ".diffsan")
+    events = EventLogger(artifacts.path("events.jsonl"))
+    config = AppConfig(agent=AgentConfig(max_json_retries=3))
+
+    def _run_cursor_once(prompt: str, cfg: AppConfig) -> AgentAttempt:
+        _ = prompt, cfg
+        return AgentAttempt(
+            raw_stdout="{}",
+            raw_stderr="",
+            exit_code=0,
+            duration_ms=1,
+        )
+
+    def _parse_and_validate(raw: str) -> ReviewOutput:
+        _ = raw
+        raise run_module.ReviewerError(
+            "parser boom",
+            error_code=ErrorCode.AGENT_EXEC_FAILED,
+        )
+
+    monkeypatch.setattr(run_module, "run_cursor_once", _run_cursor_once)
+    monkeypatch.setattr(run_module, "parse_and_validate", _parse_and_validate)
+
+    with pytest.raises(run_module.ReviewerError) as error:
+        run_module._run_agent_with_retries(
+            request_prompt="prompt",
+            config=config,
+            artifacts=artifacts,
+            events=events,
+        )
+
+    assert error.value.error_info.error_code == ErrorCode.AGENT_EXEC_FAILED
+
+
+def test_run_milestone2_writes_stderr_artifacts_on_success(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Successful parse with stderr writes canonical and per-attempt stderr files."""
+    artifacts = ArtifactStore(tmp_path / ".diffsan")
+    events = EventLogger(artifacts.path("events.jsonl"))
+    config = AppConfig(agent=AgentConfig(max_json_retries=1))
+    review = ReviewOutput(
+        summary_markdown="ok",
+        findings=[],
+        meta=ReviewMeta(agent="cursor"),
+    )
+
+    def _run_cursor_once(prompt: str, cfg: AppConfig) -> AgentAttempt:
+        _ = prompt, cfg
+        return AgentAttempt(
+            raw_stdout="{}",
+            raw_stderr="stderr-log",
+            exit_code=0,
+            duration_ms=1,
+        )
+
+    def _parse_and_validate(raw: str) -> ReviewOutput:
+        _ = raw
+        return review
+
+    monkeypatch.setattr(run_module, "run_cursor_once", _run_cursor_once)
+    monkeypatch.setattr(run_module, "parse_and_validate", _parse_and_validate)
+
+    result = run_module._run_agent_with_retries(
+        request_prompt="prompt",
+        config=config,
+        artifacts=artifacts,
+        events=events,
+    )
+
+    assert result.summary_markdown == "ok"
+    assert (artifacts.path("agent.stderr.attempt1.txt")).read_text(
+        encoding="utf-8"
+    ) == ("stderr-log")
+    assert (artifacts.path("agent.stderr.txt")).read_text(encoding="utf-8") == (
+        "stderr-log"
+    )
+
+
+def test_run_milestone2_writes_stderr_artifact_on_retry_exhaustion(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Retry exhaustion still writes canonical stderr from the last attempt."""
+    artifacts = ArtifactStore(tmp_path / ".diffsan")
+    events = EventLogger(artifacts.path("events.jsonl"))
+    config = AppConfig(agent=AgentConfig(max_json_retries=1))
+
+    def _run_cursor_once(prompt: str, cfg: AppConfig) -> AgentAttempt:
+        _ = prompt, cfg
+        return AgentAttempt(
+            raw_stdout="not-json",
+            raw_stderr="stderr-last",
+            exit_code=0,
+            duration_ms=1,
+        )
+
+    monkeypatch.setattr(run_module, "run_cursor_once", _run_cursor_once)
+
+    with pytest.raises(run_module.ReviewerError) as error:
+        run_module._run_agent_with_retries(
+            request_prompt="prompt",
+            config=config,
+            artifacts=artifacts,
+            events=events,
+        )
+
+    assert error.value.error_info.error_code == ErrorCode.AGENT_OUTPUT_INVALID
+    assert (artifacts.path("agent.stderr.attempt1.txt")).read_text(
+        encoding="utf-8"
+    ) == ("stderr-last")
+    assert (artifacts.path("agent.stderr.txt")).read_text(encoding="utf-8") == (
+        "stderr-last"
+    )
