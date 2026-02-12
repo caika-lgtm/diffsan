@@ -14,15 +14,16 @@ from diffsan.contracts.models import (
     ArtifactPointers,
     Fingerprint,
     ModeConfig,
+    ReviewOutput,
     RunResult,
 )
-from diffsan.core.agent_cursor import run_cursor_once
+from diffsan.core.agent_cursor import AgentAttempt, run_cursor_once
 from diffsan.core.diff_provider import get_diff
 from diffsan.core.fingerprint import compute_fingerprint
 from diffsan.core.format import print_summary_markdown
 from diffsan.core.parse_validate import parse_and_validate
 from diffsan.core.preprocess import prepare_diff
-from diffsan.core.prompt import build_agent_request
+from diffsan.core.prompt import build_agent_request, build_json_repair_prompt
 from diffsan.io.artifacts import ArtifactStore
 from diffsan.io.logging import EventLogger
 
@@ -36,6 +37,8 @@ REDACTION_ARTIFACT_NAME: Final[str] = "redaction.json"
 PROMPT_ARTIFACT_NAME: Final[str] = "prompt.txt"
 RAW_OUTPUT_ARTIFACT_NAME: Final[str] = "agent.raw.txt"
 RAW_STDERR_ARTIFACT_NAME: Final[str] = "agent.stderr.txt"
+RAW_OUTPUT_ATTEMPT_ARTIFACT_TEMPLATE: Final[str] = "agent.raw.attempt{attempt}.txt"
+RAW_STDERR_ATTEMPT_ARTIFACT_TEMPLATE: Final[str] = "agent.stderr.attempt{attempt}.txt"
 REVIEW_ARTIFACT_NAME: Final[str] = "review.json"
 
 
@@ -165,7 +168,7 @@ def _run_pipeline(
     _artifacts: ArtifactStore,
     events: EventLogger,
 ) -> PipelineOutcome:
-    """Milestone-1 pipeline: diff -> prompt -> agent -> validate -> stdout."""
+    """Milestone-2 pipeline: diff -> prompt -> agent retries -> validate -> stdout."""
     if options.dry_run:
         events.emit(
             EventName.SKIP_DECIDED,
@@ -219,20 +222,12 @@ def _run_pipeline(
         data={"path": PROMPT_ARTIFACT_NAME, "chars": len(request.prompt)},
     )
 
-    attempt = run_cursor_once(request.prompt, _config)
-    _artifacts.write_text(RAW_OUTPUT_ARTIFACT_NAME, attempt.raw_stdout)
-    if attempt.raw_stderr:
-        _artifacts.write_text(RAW_STDERR_ARTIFACT_NAME, attempt.raw_stderr)
-    events.emit(
-        EventName.AGENT_ATTEMPT,
-        data={
-            "attempt": 1,
-            "exit_code": attempt.exit_code,
-            "duration_ms": attempt.duration_ms,
-        },
+    review = _run_agent_with_retries(
+        request_prompt=request.prompt,
+        config=_config,
+        artifacts=_artifacts,
+        events=events,
     )
-
-    review = parse_and_validate(attempt.raw_stdout)
     review = review.model_copy(
         update={
             "meta": review.meta.model_copy(
@@ -256,3 +251,95 @@ def _run_pipeline(
 
     print_summary_markdown(review)
     return PipelineOutcome(skipped=False, fingerprint=fingerprint)
+
+
+def _run_agent_with_retries(
+    *,
+    request_prompt: str,
+    config: AppConfig,
+    artifacts: ArtifactStore,
+    events: EventLogger,
+) -> ReviewOutput:
+    max_attempts = max(1, config.agent.max_json_retries)
+    prompt = request_prompt
+    last_invalid_error: ReviewerError | None = None
+    last_attempt: AgentAttempt | None = None
+
+    for attempt_number in range(1, max_attempts + 1):
+        attempt = run_cursor_once(prompt, config)
+        last_attempt = attempt
+        _write_attempt_artifacts(
+            artifacts=artifacts,
+            attempt_number=attempt_number,
+            attempt=attempt,
+        )
+        events.emit(
+            EventName.AGENT_ATTEMPT,
+            data={
+                "attempt": attempt_number,
+                "exit_code": attempt.exit_code,
+                "duration_ms": attempt.duration_ms,
+            },
+        )
+
+        try:
+            review = parse_and_validate(attempt.raw_stdout)
+        except ReviewerError as exc:
+            if exc.error_info.error_code != ErrorCode.AGENT_OUTPUT_INVALID:
+                raise
+            last_invalid_error = exc
+            if attempt_number >= max_attempts:
+                break
+            prompt = build_json_repair_prompt(
+                config=config,
+                validation_error=exc,
+                previous_output=attempt.raw_stdout,
+            )
+            continue
+
+        artifacts.write_text(RAW_OUTPUT_ARTIFACT_NAME, attempt.raw_stdout)
+        if attempt.raw_stderr:
+            artifacts.write_text(RAW_STDERR_ARTIFACT_NAME, attempt.raw_stderr)
+        return review
+
+    if last_attempt is not None:
+        artifacts.write_text(RAW_OUTPUT_ARTIFACT_NAME, last_attempt.raw_stdout)
+        if last_attempt.raw_stderr:
+            artifacts.write_text(RAW_STDERR_ARTIFACT_NAME, last_attempt.raw_stderr)
+
+    if last_invalid_error is None:  # pragma: no cover - defensive guard
+        raise ReviewerError(
+            "Agent output failed without parse/validation details",
+            error_code=ErrorCode.AGENT_OUTPUT_INVALID,
+            context={"attempts": max_attempts, "agent": config.agent.agent},
+        )
+
+    raise ReviewerError(
+        f"Failed to obtain valid JSON output after {max_attempts} attempts",
+        error_code=ErrorCode.AGENT_OUTPUT_INVALID,
+        context={
+            "attempts": max_attempts,
+            "agent": config.agent.agent,
+            "last_error": last_invalid_error.error_info.message,
+        },
+        cause=(
+            last_invalid_error.error_info.cause or last_invalid_error.error_info.message
+        ),
+    )
+
+
+def _write_attempt_artifacts(
+    *,
+    artifacts: ArtifactStore,
+    attempt_number: int,
+    attempt: AgentAttempt,
+) -> None:
+    artifacts.write_text(
+        RAW_OUTPUT_ATTEMPT_ARTIFACT_TEMPLATE.format(attempt=attempt_number),
+        attempt.raw_stdout,
+    )
+    if attempt.raw_stderr:
+        artifacts.write_text(
+            RAW_STDERR_ATTEMPT_ARTIFACT_TEMPLATE.format(attempt=attempt_number),
+            attempt.raw_stderr,
+        )
