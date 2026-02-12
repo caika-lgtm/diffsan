@@ -11,16 +11,10 @@ from diffsan.core.parse_validate import parse_and_validate
 
 
 def test_parse_and_validate_success() -> None:
-    """Valid JSON ReviewOutput passes validation."""
+    """Valid agent JSON payload passes validation."""
     raw = """{
       "summary_markdown": "ok",
-      "findings": [],
-      "meta": {
-        "agent": "cursor",
-        "token_usage": {},
-        "truncated": false,
-        "redaction_found": false
-      }
+      "findings": []
     }"""
 
     review = parse_and_validate(raw)
@@ -42,7 +36,6 @@ def test_parse_and_validate_wrapped_result_json() -> None:
     review_payload = {
         "summary_markdown": "wrapped-ok",
         "findings": [],
-        "meta": {"agent": "cursor", "token_usage": {}, "truncated": False},
     }
     wrapped = {
         "type": "result",
@@ -55,7 +48,6 @@ def test_parse_and_validate_wrapped_result_json() -> None:
     review = parse_and_validate(raw)
 
     assert review.summary_markdown == "wrapped-ok"
-    assert review.meta.agent == "cursor"
 
 
 def test_parse_and_validate_wrapped_result_error() -> None:
@@ -90,13 +82,28 @@ def test_parse_and_validate_wrapped_result_dict_payload() -> None:
         "result": {
             "summary_markdown": "wrapped-dict-ok",
             "findings": [],
-            "meta": {"agent": "cursor", "token_usage": {}, "truncated": False},
         },
     }
 
     review = parse_and_validate(json.dumps(wrapped))
 
     assert review.summary_markdown == "wrapped-dict-ok"
+
+
+def test_parse_and_validate_meta_field_is_rejected() -> None:
+    """Agent payloads including meta should fail schema validation."""
+    raw = json.dumps(
+        {
+            "summary_markdown": "ok",
+            "findings": [],
+            "meta": {"agent": "cursor"},
+        }
+    )
+
+    with pytest.raises(ReviewerError) as error:
+        parse_and_validate(raw)
+
+    assert error.value.error_info.error_code == ErrorCode.AGENT_OUTPUT_INVALID
 
 
 def test_parse_and_validate_wrapped_result_invalid_json_string() -> None:

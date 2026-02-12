@@ -43,6 +43,8 @@ def test_run_cursor_once_uses_default_command_with_api_key(
     attempt = run_cursor_once("prompt-text", AppConfig())
 
     assert attempt.exit_code == 0
+    assert attempt.started_at <= attempt.ended_at
+    assert attempt.duration_ms >= 0
     assert commands == [
         [
             "cursor-agent",

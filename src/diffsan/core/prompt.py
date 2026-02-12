@@ -9,11 +9,11 @@ from typing import TYPE_CHECKING, Final
 from diffsan.contracts.models import (
     AgentRequest,
     AgentRequestMeta,
+    AgentReviewOutput,
     AppConfig,
     Fingerprint,
     PreparedDiff,
     PriorDigest,
-    ReviewOutput,
 )
 
 if TYPE_CHECKING:
@@ -38,7 +38,6 @@ _REPAIR_SCHEMA_SUMMARY: Final[str] = "\n".join(
         "Top-level object fields:",
         "- summary_markdown: string",
         "- findings: array of finding objects",
-        "- meta: object",
         "",
         "Each finding must include:",
         "- severity: info|low|medium|high|critical",
@@ -65,7 +64,7 @@ def build_agent_request(
     prior_digest: PriorDigest | None = None,
 ) -> AgentRequest:
     """Create the prompt and metadata for one agent attempt."""
-    schema = ReviewOutput.model_json_schema()
+    schema = AgentReviewOutput.model_json_schema()
     sections = [
         "## Role",
         _SYSTEM_TASK,

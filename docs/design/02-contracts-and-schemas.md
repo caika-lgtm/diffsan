@@ -222,7 +222,7 @@ Contains the prompt plus metadata used for artifacts/logging. The prompt itself 
 }
 ```
 
-### ReviewOutput (agent _must_ emit this JSON)
+### AgentReviewOutput (agent _must_ emit this JSON)
 
 - Cursor is unstructured → diffsan must validate and retry/repair until this schema is satisfied.
 
@@ -243,21 +243,20 @@ Contains the prompt plus metadata used for artifacts/logging. The prompt itself 
         "content": "--- a/app/auth.py\n+++ b/app/auth.py\n@@\n- eval(expr)\n+ ast.literal_eval(expr)\n"
       }
     }
-  ],
-  "meta": {
-    "fingerprint": { "algo": "sha256", "value": "b7d4..." },
-    "agent": "cursor",
-    "timings": {
-      "started_at": "2026-02-10T12:01:02Z",
-      "ended_at": "2026-02-10T12:01:35Z",
-      "duration_ms": 33000
-    },
-    "token_usage": {},
-    "truncated": true,
-    "redaction_found": false
-  }
+  ]
 }
 ```
+
+### ReviewOutput (final validated artifact written by diffsan)
+
+`diffsan` composes `ReviewOutput` after parsing `AgentReviewOutput`, and populates `meta`
+outside the agent using runtime context:
+
+- `fingerprint` from `sha256(raw diff)`
+- `agent` from runtime config
+- `timings` from agent execution timing
+- `token_usage` best-effort (empty if unavailable)
+- `truncated` and `redaction_found` from preprocessor results
 
 ### Finding fields (minimum required)
 
