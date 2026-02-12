@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Final
@@ -62,6 +63,7 @@ class RunOptions:
     ci: bool = False
     dry_run: bool = False
     workdir: str = DEFAULT_WORKDIR
+    note_timezone: str = "SGT"
 
 
 @dataclass(frozen=True, slots=True)
@@ -284,6 +286,7 @@ def _run_pipeline(
             review=review,
             fingerprint=fingerprint,
             truncation=prepared.truncation,
+            note_timezone=options.note_timezone,
         )
 
     return PipelineOutcome(skipped=False, fingerprint=fingerprint)
@@ -393,11 +396,14 @@ def _post_summary_note_to_gitlab(
     review: ReviewOutput,
     fingerprint: Fingerprint,
     truncation: TruncationReport,
+    note_timezone: str,
 ) -> None:
     post_plan = build_post_plan(
         review=review,
         config=config,
         fallback_fingerprint=fingerprint,
+        note_timezone=note_timezone,
+        pipeline_id=os.getenv("CI_PIPELINE_ID"),
     )
     artifacts.write_json(POST_PLAN_ARTIFACT_NAME, post_plan)
     events.emit(
