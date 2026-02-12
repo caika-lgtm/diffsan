@@ -1,5 +1,6 @@
 """Tests for prompt construction."""
 
+from diffsan.contracts.errors import ErrorCode, ReviewerError
 from diffsan.contracts.models import (
     AgentConfig,
     AppConfig,
@@ -11,7 +12,7 @@ from diffsan.contracts.models import (
     TruncationItem,
     TruncationReport,
 )
-from diffsan.core.prompt import build_agent_request
+from diffsan.core.prompt import build_agent_request, build_json_repair_prompt
 
 
 def test_build_agent_request_with_prior_truncation_and_redaction() -> None:
@@ -93,3 +94,31 @@ def test_build_agent_request_without_prior_or_flags() -> None:
     assert "Truncation occurred: False." in request.prompt
     assert "Redaction occurred: False." in request.prompt
     assert "Extra skills to apply" not in request.prompt
+
+
+def test_build_json_repair_prompt_includes_errors_and_excerpt() -> None:
+    """Repair prompt contains strict instructions, errors, and bounded output."""
+    config = AppConfig()
+    validation_error = ReviewerError(
+        "Agent output failed schema validation",
+        error_code=ErrorCode.AGENT_OUTPUT_INVALID,
+        context={
+            "errors": [
+                {"loc": ("findings", 0, "line_start"), "msg": "Field required"},
+                {"loc": ("meta", "agent"), "msg": "Input should be a valid string"},
+            ]
+        },
+    )
+    previous_output = "x" * 3000
+
+    prompt = build_json_repair_prompt(
+        config=config,
+        validation_error=validation_error,
+        previous_output=previous_output,
+    )
+
+    assert "You produced invalid output." in prompt
+    assert "Return ONLY a corrected JSON object" in prompt
+    assert "- findings.0.line_start: Field required" in prompt
+    assert "- meta.agent: Input should be a valid string" in prompt
+    assert "...[truncated]..." in prompt
