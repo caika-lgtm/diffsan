@@ -53,6 +53,53 @@ def test_create_note_success_returns_id(monkeypatch) -> None:
     assert captured["payload"] == {"body": "hello"}
 
 
+def test_create_discussion_success_returns_id(monkeypatch) -> None:
+    """Successful discussion creation returns discussion id and payload."""
+    monkeypatch.setenv("TEST_GITLAB_TOKEN", "token")
+    client = GitLabClient(_base_config(), sleep_fn=lambda _: None)
+
+    captured: dict[str, object] = {}
+
+    def _send_request(*, method, url, token, payload):
+        captured["method"] = method
+        captured["url"] = url
+        captured["token"] = token
+        captured["payload"] = payload
+        return 201, '{"id": 654}'
+
+    monkeypatch.setattr(client, "_send_request", _send_request)
+
+    result = client.create_discussion(
+        body="inline",
+        position={
+            "base_sha": "a" * 40,
+            "head_sha": "b" * 40,
+            "start_sha": "a" * 40,
+            "new_path": "src/main.py",
+            "new_line": 5,
+        },
+    )
+
+    assert result.discussion_id == 654
+    assert result.status_code == 201
+    assert result.retry_count == 0
+    assert captured["method"] == "POST"
+    assert captured["url"] == (
+        "https://gitlab.example.com/api/v4/projects/123/merge_requests/7/discussions"
+    )
+    assert captured["token"] == "token"
+    assert captured["payload"] == {
+        "body": "inline",
+        "position": {
+            "base_sha": "a" * 40,
+            "head_sha": "b" * 40,
+            "start_sha": "a" * 40,
+            "new_path": "src/main.py",
+            "new_line": 5,
+        },
+    }
+
+
 def test_create_note_retries_429_then_succeeds(monkeypatch) -> None:
     """HTTP 429 should be retried and eventually succeed."""
     monkeypatch.setenv("TEST_GITLAB_TOKEN", "token")
@@ -157,6 +204,37 @@ def test_create_note_400_maps_to_post_failed(monkeypatch) -> None:
         client.create_note("hello")
 
     assert error.value.error_info.error_code == ErrorCode.GITLAB_POST_FAILED
+    assert error.value.error_info.retryable is False
+    assert error.value.error_info.context["status"] == 400
+
+
+def test_create_discussion_400_maps_to_position_invalid(monkeypatch) -> None:
+    """Invalid position errors should map to GITLAB_POSITION_INVALID."""
+    monkeypatch.setenv("TEST_GITLAB_TOKEN", "token")
+    client = GitLabClient(_base_config(retry_max=3), sleep_fn=lambda _: None)
+
+    def _send_request(*, method, url, token, payload):
+        _ = method, url, token, payload
+        raise gitlab_module._GitLabHttpError(
+            status_code=400,
+            body='{"message":"position is invalid"}',
+        )
+
+    monkeypatch.setattr(client, "_send_request", _send_request)
+
+    with pytest.raises(ReviewerError) as error:
+        client.create_discussion(
+            body="inline",
+            position={
+                "base_sha": "a" * 40,
+                "head_sha": "b" * 40,
+                "start_sha": "a" * 40,
+                "new_path": "src/main.py",
+                "new_line": 9,
+            },
+        )
+
+    assert error.value.error_info.error_code == ErrorCode.GITLAB_POSITION_INVALID
     assert error.value.error_info.retryable is False
     assert error.value.error_info.context["status"] == 400
 

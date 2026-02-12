@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 
 from diffsan.contracts.models import (
     AppConfig,
+    DiffRef,
+    Finding,
     Fingerprint,
     PostPlan,
     ReviewMeta,
@@ -181,3 +183,57 @@ def test_build_post_plan_includes_pipeline_id_when_available() -> None:
     )
 
     assert "**MR pipeline ID:** `123456`" in plan.summary_meta_collapsible
+
+
+def test_build_post_plan_maps_discussions_and_unpositioned_findings() -> None:
+    """Findings on added lines should map to discussions; others go to summary."""
+    review = ReviewOutput(
+        summary_markdown="### Summary",
+        findings=[
+            Finding(
+                severity="high",
+                category="security",
+                path="src/main.py",
+                line_start=2,
+                line_end=2,
+                body_markdown="Use safer parsing.",
+            ),
+            Finding(
+                severity="medium",
+                category="correctness",
+                path="src/main.py",
+                line_start=42,
+                line_end=42,
+                body_markdown="Potential off-by-one.",
+            ),
+        ],
+        meta=ReviewMeta(agent="cursor"),
+    )
+    prepared_diff = (
+        "diff --git a/src/main.py b/src/main.py\n"
+        "--- a/src/main.py\n"
+        "+++ b/src/main.py\n"
+        "@@ -1,2 +1,3 @@\n"
+        " def run():\n"
+        "+    return parse_safe()\n"
+        "     return parse()\n"
+    )
+
+    plan = build_post_plan(
+        review=review,
+        config=AppConfig(),
+        fallback_fingerprint=None,
+        note_timezone="SGT",
+        prepared_diff=prepared_diff,
+        diff_ref=DiffRef(
+            base_sha="a" * 40,
+            head_sha="b" * 40,
+        ),
+    )
+
+    assert len(plan.discussions) == 1
+    assert plan.discussions[0].path == "src/main.py"
+    assert plan.discussions[0].position is not None
+    assert plan.discussions[0].position.new_line == 2
+    assert "### Unpositioned findings" in plan.summary_markdown
+    assert "`src/main.py:42`" in plan.summary_markdown
