@@ -18,6 +18,8 @@ from diffsan.contracts.models import (
 )
 from diffsan.core.format import build_post_plan, build_summary_note_body
 
+_RUN_ERRORS_MARKER = "<details><summary><strong>Run errors</strong></summary>"
+
 
 def test_build_post_plan_includes_metadata_collapsible() -> None:
     """Post plan should include the metadata collapsible block."""
@@ -107,6 +109,32 @@ def test_build_summary_note_body_omits_secret_warning_when_disabled() -> None:
 
     assert "Secret Scan Warning" not in body
     assert "<details><summary><strong>Truncation details</strong></summary>" not in body
+
+
+def test_build_summary_note_body_includes_run_errors_section_when_present() -> None:
+    """Run errors section renders only when error lines are provided."""
+    body_with_errors = build_summary_note_body(
+        post_plan=PostPlan(summary_markdown="s", summary_meta_collapsible="m"),
+        summary_note_tag="ai-reviewer",
+        truncation=TruncationReport(),
+        redaction_found=False,
+        include_secret_warning=False,
+        run_errors=[
+            "`a.py:2` [GITLAB_POSITION_INVALID] GitLab rejected discussion position",
+        ],
+    )
+    body_without_errors = build_summary_note_body(
+        post_plan=PostPlan(summary_markdown="s", summary_meta_collapsible="m"),
+        summary_note_tag="ai-reviewer",
+        truncation=TruncationReport(),
+        redaction_found=False,
+        include_secret_warning=False,
+        run_errors=[],
+    )
+
+    assert _RUN_ERRORS_MARKER in body_with_errors
+    assert "GITLAB_POSITION_INVALID" in body_with_errors
+    assert _RUN_ERRORS_MARKER not in body_without_errors
 
 
 def test_build_post_plan_formats_minutes_and_handles_timezone_fallbacks() -> None:

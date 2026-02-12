@@ -453,63 +453,8 @@ def _post_summary_note_to_gitlab(
         },
     )
 
-    note_body = build_summary_note_body(
-        post_plan=post_plan,
-        summary_note_tag=config.gitlab.summary_note_tag,
-        truncation=truncation,
-        redaction_found=review.meta.redaction_found,
-        include_secret_warning=config.secrets.post_warning_to_mr,
-    )
-
-    post_items: list[PostResultItem] = []
-    try:
-        note_result = client.create_note(note_body)
-    except ReviewerError as exc:
-        retry_count = _extract_retry_count(exc)
-        http_status = _extract_http_status(exc)
-        post_results = PostResults(
-            ok=False,
-            items=[
-                PostResultItem(
-                    kind="summary_note",
-                    ok=False,
-                    http_status=http_status,
-                    retry_count=retry_count,
-                    error=exc.error_info,
-                )
-            ],
-        )
-        artifacts.write_json(POST_RESULTS_ARTIFACT_NAME, post_results)
-        events.emit(
-            EventName.GITLAB_POST_SUMMARY,
-            level=EventLevel.ERROR,
-            data={
-                "ok": False,
-                "http_status": http_status,
-                "retry": retry_count,
-            },
-        )
-        raise
-
-    post_items.append(
-        PostResultItem(
-            kind="summary_note",
-            ok=True,
-            http_status=note_result.status_code,
-            gitlab_id=note_result.note_id,
-            retry_count=note_result.retry_count,
-        )
-    )
-    events.emit(
-        EventName.GITLAB_POST_SUMMARY,
-        data={
-            "ok": True,
-            "http_status": note_result.status_code,
-            "id": note_result.note_id,
-            "retry": note_result.retry_count,
-        },
-    )
-
+    discussion_items: list[PostResultItem] = []
+    summary_error_lines: list[str] = []
     failed_discussions = 0
     for discussion in post_plan.discussions:
         if discussion.position is None:  # pragma: no cover - contract guard
@@ -523,13 +468,21 @@ def _post_summary_note_to_gitlab(
             failed_discussions += 1
             retry_count = _extract_retry_count(exc)
             http_status = _extract_http_status(exc)
-            post_items.append(
+            discussion_items.append(
                 PostResultItem(
                     kind="discussion",
                     ok=False,
                     http_status=http_status,
                     retry_count=retry_count,
                     error=exc.error_info,
+                )
+            )
+            summary_error_lines.append(
+                _format_discussion_error_for_note(
+                    path=discussion.path,
+                    line=discussion.position.new_line,
+                    http_status=http_status,
+                    error=exc,
                 )
             )
             events.emit(
@@ -546,7 +499,7 @@ def _post_summary_note_to_gitlab(
             )
             continue
 
-        post_items.append(
+        discussion_items.append(
             PostResultItem(
                 kind="discussion",
                 ok=True,
@@ -567,8 +520,65 @@ def _post_summary_note_to_gitlab(
             },
         )
 
-    post_results = PostResults(ok=failed_discussions == 0, items=post_items)
+    note_body = build_summary_note_body(
+        post_plan=post_plan,
+        summary_note_tag=config.gitlab.summary_note_tag,
+        truncation=truncation,
+        redaction_found=review.meta.redaction_found,
+        include_secret_warning=config.secrets.post_warning_to_mr,
+        run_errors=summary_error_lines,
+    )
+
+    summary_item: PostResultItem
+    summary_error: ReviewerError | None = None
+    try:
+        note_result = client.create_note(note_body)
+    except ReviewerError as exc:
+        summary_error = exc
+        retry_count = _extract_retry_count(exc)
+        http_status = _extract_http_status(exc)
+        summary_item = PostResultItem(
+            kind="summary_note",
+            ok=False,
+            http_status=http_status,
+            retry_count=retry_count,
+            error=exc.error_info,
+        )
+        events.emit(
+            EventName.GITLAB_POST_SUMMARY,
+            level=EventLevel.ERROR,
+            data={
+                "ok": False,
+                "http_status": http_status,
+                "retry": retry_count,
+            },
+        )
+    else:
+        summary_item = PostResultItem(
+            kind="summary_note",
+            ok=True,
+            http_status=note_result.status_code,
+            gitlab_id=note_result.note_id,
+            retry_count=note_result.retry_count,
+        )
+        events.emit(
+            EventName.GITLAB_POST_SUMMARY,
+            data={
+                "ok": True,
+                "http_status": note_result.status_code,
+                "id": note_result.note_id,
+                "retry": note_result.retry_count,
+            },
+        )
+
+    post_items = [summary_item, *discussion_items]
+    post_results = PostResults(
+        ok=summary_item.ok and failed_discussions == 0,
+        items=post_items,
+    )
     artifacts.write_json(POST_RESULTS_ARTIFACT_NAME, post_results)
+    if summary_error is not None:
+        raise summary_error
     if failed_discussions > 0:
         raise ReviewerError(
             "GitLab discussion posting partially failed",
@@ -593,3 +603,18 @@ def _extract_retry_count(error: ReviewerError) -> int:
 def _extract_mr_diff_refs(payload: dict[str, object]) -> dict[str, object] | None:
     diff_refs = payload.get("diff_refs")
     return cast("dict[str, object]", diff_refs) if isinstance(diff_refs, dict) else None
+
+
+def _format_discussion_error_for_note(
+    *,
+    path: str,
+    line: int,
+    http_status: int | None,
+    error: ReviewerError,
+) -> str:
+    status_text = f" (HTTP {http_status})" if http_status is not None else ""
+    return (
+        f"`{path}:{line}` "
+        f"[{error.error_info.error_code}] "
+        f"{error.error_info.message}{status_text}"
+    )
