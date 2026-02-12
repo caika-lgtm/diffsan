@@ -1,4 +1,4 @@
-"""GitLab API client helpers for MR metadata and posting summary notes."""
+"""GitLab API client helpers for MR metadata and posting notes/discussions."""
 
 from __future__ import annotations
 
@@ -31,6 +31,15 @@ class GitLabNoteResult:
     """Summary note creation result."""
 
     note_id: int | None
+    status_code: int
+    retry_count: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class GitLabDiscussionResult:
+    """Inline discussion creation result."""
+
+    discussion_id: int | None
     status_code: int
     retry_count: int = 0
 
@@ -73,6 +82,7 @@ class GitLabClient:
             payload=None,
             error_code=ErrorCode.GITLAB_FETCH_PRIOR_FAILED,
             action="fetch merge request",
+            invalid_400_error_code=None,
         )
 
     def create_note(self, body: str) -> GitLabNoteResult:
@@ -85,10 +95,34 @@ class GitLabClient:
             payload={"body": body},
             error_code=ErrorCode.GITLAB_POST_FAILED,
             action="create MR note",
+            invalid_400_error_code=None,
         )
         note_id = _to_int_or_none(response.payload.get("id"))
         return GitLabNoteResult(
             note_id=note_id,
+            status_code=response.status_code,
+            retry_count=response.retry_count,
+        )
+
+    def create_discussion(
+        self,
+        *,
+        body: str,
+        position: dict[str, Any],
+    ) -> GitLabDiscussionResult:
+        """Create one inline MR discussion."""
+        context = self._resolve_context(error_code=ErrorCode.GITLAB_POST_FAILED)
+        response = self._request_json(
+            method="POST",
+            context=context,
+            path=f"{self._mr_api_path(context)}/discussions",
+            payload={"body": body, "position": position},
+            error_code=ErrorCode.GITLAB_POST_FAILED,
+            action="create MR discussion",
+            invalid_400_error_code=ErrorCode.GITLAB_POSITION_INVALID,
+        )
+        return GitLabDiscussionResult(
+            discussion_id=_to_int_or_none(response.payload.get("id")),
             status_code=response.status_code,
             retry_count=response.retry_count,
         )
@@ -102,6 +136,7 @@ class GitLabClient:
         payload: dict[str, Any] | None,
         error_code: ErrorCode,
         action: str,
+        invalid_400_error_code: ErrorCode | None,
     ) -> GitLabRequestResult:
         url = f"{context.api_v4_url}{path}"
         retry_max = max(1, self.config.retry_max)
@@ -141,6 +176,19 @@ class GitLabClient:
                             "retry_count": retry_count,
                         },
                         cause=exc.body[:500] or "not found",
+                    ) from exc
+                if exc.status_code == 400 and invalid_400_error_code is not None:
+                    raise ReviewerError(
+                        "GitLab rejected discussion position",
+                        error_code=invalid_400_error_code,
+                        context={
+                            "status": exc.status_code,
+                            "url": url,
+                            "action": action,
+                            "retry_count": retry_count,
+                            "response": error_payload,
+                        },
+                        cause=exc.body[:500] or "invalid discussion position",
                     ) from exc
                 if _is_retryable_http_status(exc.status_code):
                     if attempt_idx < retry_max - 1:
