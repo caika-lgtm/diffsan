@@ -260,6 +260,7 @@ def build_summary_note_body(
     truncation: TruncationReport,
     redaction_found: bool,
     include_secret_warning: bool,
+    run_errors: list[str] | None = None,
 ) -> str:
     """Render the final markdown body for the summary note."""
     sections: list[str] = [
@@ -283,7 +284,20 @@ def build_summary_note_body(
                 ]
             )
         )
+    if run_errors:
+        sections.append(_build_run_errors_collapsible(run_errors))
     return "\n\n".join(section for section in sections if section.strip()) + "\n"
+
+
+def _build_run_errors_collapsible(run_errors: list[str]) -> str:
+    lines = [
+        "<details><summary><strong>Run errors</strong></summary>",
+        "",
+    ]
+    for error_line in run_errors:
+        lines.append(f"- {error_line}")
+    lines.append("</details>")
+    return "\n".join(lines)
 
 
 def _build_summary_meta_collapsible(

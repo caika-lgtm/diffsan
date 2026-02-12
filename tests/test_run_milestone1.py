@@ -35,6 +35,8 @@ from diffsan.run import RunOptions
 if TYPE_CHECKING:
     from pathlib import Path
 
+_RUN_ERRORS_MARKER = "<details><summary><strong>Run errors</strong></summary>"
+
 
 def _fixture_diff_and_prepared() -> tuple[DiffBundle, PreparedDiff]:
     diff_bundle = DiffBundle(
@@ -482,6 +484,8 @@ def test_run_milestone4_discussion_failure_is_partial_and_nonzero(
         included_paths=["a.py"],
     )
 
+    captured_note: dict[str, str] = {}
+
     class _PartiallyFailingGitLabClient(_FakeGitLabClient):
         def get_mr(self):
             return SimpleNamespace(
@@ -496,6 +500,10 @@ def test_run_milestone4_discussion_failure_is_partial_and_nonzero(
                 },
                 retry_count=0,
             )
+
+        def create_note(self, body: str):
+            captured_note["body"] = body
+            return super().create_note(body)
 
         def create_discussion(self, *, body: str, position: dict[str, object]):
             _ = body, position
@@ -565,6 +573,8 @@ def test_run_milestone4_discussion_failure_is_partial_and_nonzero(
         post_results["items"][1]["error"]["error_code"]
         == ErrorCode.GITLAB_POSITION_INVALID
     )
+    assert _RUN_ERRORS_MARKER in captured_note["body"]
+    assert "GITLAB_POSITION_INVALID" in captured_note["body"]
 
 
 def test_run_milestone4_discussion_success_emits_event_payload(
@@ -591,6 +601,8 @@ def test_run_milestone4_discussion_success_emits_event_payload(
         included_paths=["a.py"],
     )
 
+    captured_note: dict[str, str] = {}
+
     class _DiscussionGitLabClient(_FakeGitLabClient):
         def get_mr(self):
             return SimpleNamespace(
@@ -605,6 +617,10 @@ def test_run_milestone4_discussion_success_emits_event_payload(
                 },
                 retry_count=0,
             )
+
+        def create_note(self, body: str):
+            captured_note["body"] = body
+            return super().create_note(body)
 
     review = AgentReviewOutput(
         summary_markdown="### Summary",
@@ -667,6 +683,7 @@ def test_run_milestone4_discussion_success_emits_event_payload(
     assert payload["http_status"] == 201
     assert payload["id"] == 202
     assert payload["retry"] == 0
+    assert _RUN_ERRORS_MARKER not in captured_note["body"]
 
 
 def test_run_milestone2_retries_passthrough_non_output_invalid_error(
