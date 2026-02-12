@@ -106,3 +106,34 @@ def test_cli_non_ci_failure_prints_events(tmp_path: Path) -> None:
     assert "error_code=DIFF_FETCH_FAILED" in result.output
     assert "supports CI mode only" in result.output
     assert "[diffsan] run.finished | ok=False" in result.output
+
+
+def test_run_workdir_creation_failure_falls_back_to_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """run() falls back to default workdir when requested workdir creation fails."""
+    import diffsan.run as run_module
+
+    original_artifact_store = run_module.ArtifactStore
+    fallback_dir = tmp_path / "fallback-workdir"
+    calls = 0
+
+    def _artifact_store(workdir: str):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise OSError("cannot create workdir")
+        return original_artifact_store(workdir)
+
+    monkeypatch.setattr(run_module, "DEFAULT_WORKDIR", str(fallback_dir))
+    monkeypatch.setattr(run_module, "ArtifactStore", _artifact_store)
+
+    result = run_module.run(
+        run_module.RunOptions(ci=True, dry_run=True, workdir=str(tmp_path / "bad"))
+    )
+
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.error_code == ErrorCode.CONFIG_PARSE_ERROR
+    assert (fallback_dir / run_module.RUN_ARTIFACT_NAME).exists()
