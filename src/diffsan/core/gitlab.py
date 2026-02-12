@@ -22,7 +22,7 @@ class GitLabRequestResult:
     """Result from a successful GitLab API request."""
 
     status_code: int
-    payload: dict[str, Any]
+    payload: dict[str, Any] | list[Any]
     retry_count: int = 0
 
 
@@ -85,6 +85,19 @@ class GitLabClient:
             invalid_400_error_code=None,
         )
 
+    def list_notes(self) -> GitLabRequestResult:
+        """List MR notes for prior digest extraction."""
+        context = self._resolve_context(error_code=ErrorCode.GITLAB_FETCH_PRIOR_FAILED)
+        return self._request_json(
+            method="GET",
+            context=context,
+            path=f"{self._mr_api_path(context)}/notes?per_page=100",
+            payload=None,
+            error_code=ErrorCode.GITLAB_FETCH_PRIOR_FAILED,
+            action="list merge request notes",
+            invalid_400_error_code=None,
+        )
+
     def create_note(self, body: str) -> GitLabNoteResult:
         """Create one MR note and return the GitLab note id if present."""
         context = self._resolve_context(error_code=ErrorCode.GITLAB_POST_FAILED)
@@ -97,7 +110,8 @@ class GitLabClient:
             action="create MR note",
             invalid_400_error_code=None,
         )
-        note_id = _to_int_or_none(response.payload.get("id"))
+        payload = response.payload if isinstance(response.payload, dict) else {}
+        note_id = _to_int_or_none(payload.get("id"))
         return GitLabNoteResult(
             note_id=note_id,
             status_code=response.status_code,
@@ -121,8 +135,9 @@ class GitLabClient:
             action="create MR discussion",
             invalid_400_error_code=ErrorCode.GITLAB_POSITION_INVALID,
         )
+        payload = response.payload if isinstance(response.payload, dict) else {}
         return GitLabDiscussionResult(
-            discussion_id=_to_int_or_none(response.payload.get("id")),
+            discussion_id=_to_int_or_none(payload.get("id")),
             status_code=response.status_code,
             retry_count=response.retry_count,
         )
@@ -342,7 +357,7 @@ def _resolve_api_v4_url(base_url: str) -> str:
     return f"{normalized}/api/v4"
 
 
-def _decode_json_body(body: str) -> dict[str, Any]:
+def _decode_json_body(body: str) -> dict[str, Any] | list[Any]:
     stripped = body.strip()
     if not stripped:
         return {}
@@ -350,7 +365,7 @@ def _decode_json_body(body: str) -> dict[str, Any]:
         payload = json.loads(stripped)
     except json.JSONDecodeError:
         return {"raw": stripped[:1000]}
-    if isinstance(payload, dict):
+    if isinstance(payload, dict | list):
         return payload
     return {"raw": payload}
 

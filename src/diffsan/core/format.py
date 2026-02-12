@@ -257,6 +257,8 @@ def build_summary_note_body(
     *,
     post_plan: PostPlan,
     summary_note_tag: str,
+    fingerprint_marker: str = "",
+    prior_digest_marker: str = "",
     truncation: TruncationReport,
     redaction_found: bool,
     include_secret_warning: bool,
@@ -268,6 +270,8 @@ def build_summary_note_body(
         "<sub><em>Automated merge request review</em></sub>",
         post_plan.summary_markdown.strip(),
         f"<!-- diffsan:{summary_note_tag} -->",
+        fingerprint_marker.strip(),
+        prior_digest_marker.strip(),
         post_plan.summary_meta_collapsible,
     ]
     if truncation.truncated:

@@ -189,6 +189,26 @@ def test_get_mr_404_uses_fetch_error_code(monkeypatch) -> None:
     assert error.value.error_info.error_code == ErrorCode.GITLAB_FETCH_PRIOR_FAILED
 
 
+def test_list_notes_success_returns_list_payload(monkeypatch) -> None:
+    """Listing notes should return list payload without coercion."""
+    monkeypatch.setenv("TEST_GITLAB_TOKEN", "token")
+    client = GitLabClient(_base_config(), sleep_fn=lambda _: None)
+
+    def _send_request(*, method, url, token, payload):
+        _ = token, payload
+        assert method == "GET"
+        assert url.endswith("/merge_requests/7/notes?per_page=100")
+        return 200, '[{"id":1,"body":"note"}]'
+
+    monkeypatch.setattr(client, "_send_request", _send_request)
+
+    result = client.list_notes()
+
+    assert result.status_code == 200
+    assert isinstance(result.payload, list)
+    assert result.payload[0]["id"] == 1
+
+
 def test_create_note_400_maps_to_post_failed(monkeypatch) -> None:
     """HTTP 400 should fail without retry as GITLAB_POST_FAILED."""
     monkeypatch.setenv("TEST_GITLAB_TOKEN", "token")
@@ -442,6 +462,26 @@ def test_send_request_url_timeout_maps_to_timeout_error(monkeypatch) -> None:
         )
 
 
+def test_send_request_url_error_without_timeout_is_reraised(monkeypatch) -> None:
+    """URLError without timeout reason should bubble up unchanged."""
+    monkeypatch.setenv("TEST_GITLAB_TOKEN", "token")
+    client = GitLabClient(_base_config(), sleep_fn=lambda _: None)
+
+    def _raise_url_error(_req, timeout):
+        _ = timeout
+        raise urllib_error.URLError("network down")
+
+    monkeypatch.setattr(gitlab_module.request, "urlopen", _raise_url_error)
+
+    with pytest.raises(urllib_error.URLError):
+        client._send_request(
+            method="GET",
+            url="https://example.com",
+            token="token",
+            payload=None,
+        )
+
+
 def test_helpers_cover_url_and_body_edge_cases(monkeypatch) -> None:
     """Cover helper edge cases used by client internals."""
     monkeypatch.setenv("CI_API_V4_URL", "https://ci.example.com/api/v4/")
@@ -456,6 +496,7 @@ def test_helpers_cover_url_and_body_edge_cases(monkeypatch) -> None:
     )
 
     assert gitlab_module._decode_json_body("   ") == {}
-    assert gitlab_module._decode_json_body("[1,2,3]") == {"raw": [1, 2, 3]}
+    assert gitlab_module._decode_json_body("[1,2,3]") == [1, 2, 3]
+    assert gitlab_module._decode_json_body("1") == {"raw": 1}
     assert gitlab_module._to_int_or_none("42") == 42
     assert gitlab_module._to_int_or_none("abc") is None

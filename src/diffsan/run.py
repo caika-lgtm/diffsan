@@ -22,6 +22,7 @@ from diffsan.contracts.models import (
     ReviewMeta,
     ReviewOutput,
     RunResult,
+    SkipReason,
     TimingMeta,
     TruncationReport,
 )
@@ -36,7 +37,14 @@ from diffsan.core.format import (
 from diffsan.core.gitlab import GitLabClient
 from diffsan.core.parse_validate import parse_and_validate
 from diffsan.core.preprocess import prepare_diff
+from diffsan.core.prior import (
+    build_embedded_prior_digest,
+    encode_fingerprint_marker,
+    encode_prior_digest_marker,
+    get_prior_digest,
+)
 from diffsan.core.prompt import build_agent_request, build_json_repair_prompt
+from diffsan.core.skip import decide_skip
 from diffsan.io.artifacts import ArtifactStore
 from diffsan.io.logging import EventLogger
 
@@ -47,6 +55,7 @@ DIFF_RAW_ARTIFACT_NAME: Final[str] = "diff.raw.patch"
 DIFF_PREPARED_ARTIFACT_NAME: Final[str] = "diff.prepared.patch"
 TRUNCATION_ARTIFACT_NAME: Final[str] = "truncation.json"
 REDACTION_ARTIFACT_NAME: Final[str] = "redaction.json"
+PRIOR_DIGEST_ARTIFACT_NAME: Final[str] = "prior_digest.json"
 PROMPT_ARTIFACT_NAME: Final[str] = "prompt.txt"
 RAW_OUTPUT_ARTIFACT_NAME: Final[str] = "agent.raw.txt"
 RAW_STDERR_ARTIFACT_NAME: Final[str] = "agent.stderr.txt"
@@ -73,6 +82,7 @@ class PipelineOutcome:
 
     skipped: bool = False
     fingerprint: Fingerprint | None = None
+    skip_reasons: tuple[SkipReason, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,6 +161,7 @@ def run(options: RunOptions) -> RunResult:
         run_result.ok = True
         run_result.skipped = outcome.skipped
         run_result.fingerprint = outcome.fingerprint
+        run_result.skip_reasons = list(outcome.skip_reasons)
     except ReviewerError as exc:
         run_result.error = exc.error_info
         events.emit(
@@ -193,7 +204,7 @@ def _run_pipeline(
     _artifacts: ArtifactStore,
     events: EventLogger,
 ) -> PipelineOutcome:
-    """Milestone-4 pipeline: review generation plus GitLab summary/discussions."""
+    """Milestone-5 pipeline with skip rules and prior digest support."""
     if options.dry_run:
         events.emit(
             EventName.SKIP_DECIDED,
@@ -227,19 +238,60 @@ def _run_pipeline(
     )
 
     fingerprint = compute_fingerprint(diff_bundle.raw_diff)
+    gitlab_client: GitLabClient | None = None
+    mr_payload: dict[str, object] | None = None
+    prior_digest = None
+    if _config.mode.ci and _config.gitlab.enabled:
+        gitlab_client = GitLabClient(_config.gitlab)
+        try:
+            mr_result = gitlab_client.get_mr()
+        except ReviewerError:
+            mr_payload = None
+        else:
+            mr_payload = _extract_mr_payload(mr_result.payload)
+            if mr_payload is not None:
+                try:
+                    prior_digest = get_prior_digest(
+                        client=gitlab_client,
+                        summary_note_tag=_config.gitlab.summary_note_tag,
+                    )
+                except ReviewerError:
+                    prior_digest = None
+
+    _artifacts.write_json(
+        PRIOR_DIGEST_ARTIFACT_NAME,
+        prior_digest if prior_digest is not None else {},
+    )
+    skip_decision = decide_skip(
+        config=_config,
+        mr_payload=mr_payload,
+        fingerprint=fingerprint,
+        prior_digest=prior_digest,
+    )
     events.emit(
         EventName.SKIP_DECIDED,
         data={
-            "should_skip": False,
-            "reasons": [],
+            "should_skip": skip_decision.should_skip,
+            "reasons": [
+                reason.model_dump(mode="json") for reason in skip_decision.reasons
+            ],
             "fingerprint": f"{fingerprint.algo}:{fingerprint.value}",
         },
     )
+    if skip_decision.should_skip:
+        for reason in skip_decision.reasons:
+            print(f"Skipping diffsan review: {reason.message}")
+        return PipelineOutcome(
+            skipped=True,
+            fingerprint=fingerprint,
+            skip_reasons=tuple(skip_decision.reasons),
+        )
 
     request = build_agent_request(
         config=_config,
         prepared=prepared,
         fingerprint=fingerprint,
+        prior_digest=prior_digest,
     )
     _artifacts.write_text(PROMPT_ARTIFACT_NAME, request.prompt)
     events.emit(
@@ -284,6 +336,8 @@ def _run_pipeline(
             config=_config,
             artifacts=_artifacts,
             events=events,
+            client=gitlab_client,
+            mr_payload=mr_payload,
             review=review,
             fingerprint=fingerprint,
             truncation=prepared.truncation,
@@ -292,7 +346,7 @@ def _run_pipeline(
             note_timezone=options.note_timezone,
         )
 
-    return PipelineOutcome(skipped=False, fingerprint=fingerprint)
+    return PipelineOutcome(skipped=False, fingerprint=fingerprint, skip_reasons=())
 
 
 def _run_agent_with_retries(
@@ -396,6 +450,8 @@ def _post_summary_note_to_gitlab(
     config: AppConfig,
     artifacts: ArtifactStore,
     events: EventLogger,
+    client: GitLabClient | None,
+    mr_payload: dict[str, object] | None,
     review: ReviewOutput,
     fingerprint: Fingerprint,
     truncation: TruncationReport,
@@ -403,37 +459,40 @@ def _post_summary_note_to_gitlab(
     diff_ref: DiffRef,
     note_timezone: str,
 ) -> None:
-    client = GitLabClient(config.gitlab)
-    try:
-        mr_result = client.get_mr()
-    except ReviewerError as exc:
-        retry_count = _extract_retry_count(exc)
-        http_status = _extract_http_status(exc)
-        post_results = PostResults(
-            ok=False,
-            items=[
-                PostResultItem(
-                    kind="summary_note",
-                    ok=False,
-                    http_status=http_status,
-                    retry_count=retry_count,
-                    error=exc.error_info,
-                )
-            ],
-        )
-        artifacts.write_json(POST_RESULTS_ARTIFACT_NAME, post_results)
-        events.emit(
-            EventName.GITLAB_POST_SUMMARY,
-            level=EventLevel.ERROR,
-            data={
-                "ok": False,
-                "http_status": http_status,
-                "retry": retry_count,
-            },
-        )
-        raise
+    resolved_client = client or GitLabClient(config.gitlab)
+    resolved_mr_payload = mr_payload
+    if resolved_mr_payload is None:
+        try:
+            mr_result = resolved_client.get_mr()
+        except ReviewerError as exc:
+            retry_count = _extract_retry_count(exc)
+            http_status = _extract_http_status(exc)
+            post_results = PostResults(
+                ok=False,
+                items=[
+                    PostResultItem(
+                        kind="summary_note",
+                        ok=False,
+                        http_status=http_status,
+                        retry_count=retry_count,
+                        error=exc.error_info,
+                    )
+                ],
+            )
+            artifacts.write_json(POST_RESULTS_ARTIFACT_NAME, post_results)
+            events.emit(
+                EventName.GITLAB_POST_SUMMARY,
+                level=EventLevel.ERROR,
+                data={
+                    "ok": False,
+                    "http_status": http_status,
+                    "retry": retry_count,
+                },
+            )
+            raise
+        resolved_mr_payload = _extract_mr_payload(mr_result.payload) or {}
 
-    mr_diff_refs = _extract_mr_diff_refs(mr_result.payload)
+    mr_diff_refs = _extract_mr_diff_refs(resolved_mr_payload)
     post_plan = build_post_plan(
         review=review,
         config=config,
@@ -460,7 +519,7 @@ def _post_summary_note_to_gitlab(
         if discussion.position is None:  # pragma: no cover - contract guard
             continue
         try:
-            result = client.create_discussion(
+            result = resolved_client.create_discussion(
                 body=discussion.body_markdown,
                 position=discussion.position.model_dump(mode="json"),
             )
@@ -523,6 +582,12 @@ def _post_summary_note_to_gitlab(
     note_body = build_summary_note_body(
         post_plan=post_plan,
         summary_note_tag=config.gitlab.summary_note_tag,
+        fingerprint_marker=encode_fingerprint_marker(
+            review.meta.fingerprint or fingerprint
+        ),
+        prior_digest_marker=encode_prior_digest_marker(
+            build_embedded_prior_digest(review)
+        ),
         truncation=truncation,
         redaction_found=review.meta.redaction_found,
         include_secret_warning=config.secrets.post_warning_to_mr,
@@ -532,7 +597,7 @@ def _post_summary_note_to_gitlab(
     summary_item: PostResultItem
     summary_error: ReviewerError | None = None
     try:
-        note_result = client.create_note(note_body)
+        note_result = resolved_client.create_note(note_body)
     except ReviewerError as exc:
         summary_error = exc
         retry_count = _extract_retry_count(exc)
@@ -598,6 +663,12 @@ def _extract_http_status(error: ReviewerError) -> int | None:
 def _extract_retry_count(error: ReviewerError) -> int:
     retry_count = error.error_info.context.get("retry_count")
     return retry_count if isinstance(retry_count, int) else 0
+
+
+def _extract_mr_payload(
+    payload: dict[str, object] | list[object],
+) -> dict[str, object] | None:
+    return payload if isinstance(payload, dict) else None
 
 
 def _extract_mr_diff_refs(payload: dict[str, object]) -> dict[str, object] | None:
