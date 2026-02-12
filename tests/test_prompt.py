@@ -62,6 +62,8 @@ def test_build_agent_request_with_prior_truncation_and_redaction() -> None:
 
     assert "## Schema" in request.prompt
     assert "Return ONLY a JSON object." in request.prompt
+    assert '"title": "AgentReviewOutput"' in request.prompt
+    assert '"meta"' not in request.prompt
     assert "Truncation occurred: True." in request.prompt
     assert "Redaction occurred: True." in request.prompt
     assert "Some strings were redacted as [REDACTED]." in request.prompt
@@ -123,6 +125,7 @@ def test_build_json_repair_prompt_includes_errors_and_excerpt() -> None:
 
     assert "You produced invalid output." in prompt
     assert "Return ONLY a corrected JSON object" in prompt
+    assert "- meta: object" not in prompt
     assert "- findings.0.line_start: Field required" in prompt
     assert "- meta.agent: Input should be a valid string" in prompt
     assert "...[truncated]..." in prompt

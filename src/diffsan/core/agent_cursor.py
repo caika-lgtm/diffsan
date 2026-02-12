@@ -6,6 +6,7 @@ import os
 import shlex
 import subprocess
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from time import perf_counter
 from typing import TYPE_CHECKING
 
@@ -22,6 +23,8 @@ class AgentAttempt:
     raw_stdout: str
     raw_stderr: str
     exit_code: int
+    started_at: datetime
+    ended_at: datetime
     duration_ms: int
 
 
@@ -34,6 +37,7 @@ def run_cursor_once(prompt: str, config: AppConfig) -> AgentAttempt:
             error_code=ErrorCode.AGENT_EXEC_FAILED,
         )
 
+    started_at = datetime.now(tz=UTC)
     start = perf_counter()
     try:
         result = subprocess.run(
@@ -52,6 +56,7 @@ def run_cursor_once(prompt: str, config: AppConfig) -> AgentAttempt:
         ) from exc
 
     duration_ms = int((perf_counter() - start) * 1000)
+    ended_at = datetime.now(tz=UTC)
     if result.returncode != 0:
         raise ReviewerError(
             "Agent command exited non-zero",
@@ -64,6 +69,8 @@ def run_cursor_once(prompt: str, config: AppConfig) -> AgentAttempt:
         raw_stdout=result.stdout,
         raw_stderr=result.stderr,
         exit_code=result.returncode,
+        started_at=started_at,
+        ended_at=ended_at,
         duration_ms=duration_ms,
     )
 

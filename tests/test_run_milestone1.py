@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
@@ -14,6 +15,7 @@ from diffsan.contracts.models import (
     AgentConfig,
     AgentRequest,
     AgentRequestMeta,
+    AgentReviewOutput,
     AppConfig,
     DiffBundle,
     DiffRef,
@@ -21,7 +23,6 @@ from diffsan.contracts.models import (
     Fingerprint,
     PreparedDiff,
     RedactionReport,
-    ReviewMeta,
     ReviewOutput,
     TruncationReport,
 )
@@ -48,6 +49,25 @@ def _fixture_diff_and_prepared() -> tuple[DiffBundle, PreparedDiff]:
         included_paths=["a.py"],
     )
     return diff_bundle, prepared
+
+
+def _agent_attempt(
+    *,
+    raw_stdout: str,
+    raw_stderr: str,
+    exit_code: int,
+    duration_ms: int,
+) -> AgentAttempt:
+    started_at = datetime.now(tz=UTC)
+    ended_at = datetime.now(tz=UTC)
+    return AgentAttempt(
+        raw_stdout=raw_stdout,
+        raw_stderr=raw_stderr,
+        exit_code=exit_code,
+        started_at=started_at,
+        ended_at=ended_at,
+        duration_ms=duration_ms,
+    )
 
 
 def _patch_pipeline_dependencies(
@@ -111,22 +131,21 @@ def test_run_milestone1_writes_pipeline_artifacts(
     """Non-dry run writes review and posting artifacts and succeeds."""
 
     diff_bundle, prepared = _fixture_diff_and_prepared()
-    review = ReviewOutput(
+    review = AgentReviewOutput(
         summary_markdown="### Summary",
         findings=[],
-        meta=ReviewMeta(agent="cursor"),
     )
 
     def _run_cursor_once(prompt: str, config) -> AgentAttempt:
         _ = prompt, config
-        return AgentAttempt(
+        return _agent_attempt(
             raw_stdout="{}",
             raw_stderr="",
             exit_code=0,
             duration_ms=1,
         )
 
-    def _parse_and_validate(raw: str) -> ReviewOutput:
+    def _parse_and_validate(raw: str) -> AgentReviewOutput:
         _ = raw
         return review
 
@@ -162,8 +181,13 @@ def test_run_milestone1_writes_pipeline_artifacts(
     assert (workdir / "post_results.json").exists()
 
     run_payload = json.loads((workdir / "run.json").read_text(encoding="utf-8"))
+    review_payload = json.loads((workdir / "review.json").read_text(encoding="utf-8"))
     assert run_payload["ok"] is True
     assert run_payload["fingerprint"]["value"] == "f" * 64
+    assert review_payload["meta"]["fingerprint"]["value"] == "f" * 64
+    assert review_payload["meta"]["agent"] == "cursor"
+    assert review_payload["meta"]["timings"]["duration_ms"] == 1
+    assert review_payload["meta"]["token_usage"] == {}
     post_results = json.loads(
         (workdir / "post_results.json").read_text(encoding="utf-8")
     )
@@ -189,7 +213,6 @@ def test_run_milestone2_retries_invalid_then_succeeds(
         {
             "summary_markdown": "### Repaired summary",
             "findings": [],
-            "meta": {"agent": "cursor", "token_usage": {}, "truncated": False},
         }
     )
 
@@ -197,13 +220,13 @@ def test_run_milestone2_retries_invalid_then_succeeds(
         _ = config
         prompts.append(prompt)
         if len(prompts) == 1:
-            return AgentAttempt(
+            return _agent_attempt(
                 raw_stdout="not-json",
                 raw_stderr="",
                 exit_code=0,
                 duration_ms=1,
             )
-        return AgentAttempt(
+        return _agent_attempt(
             raw_stdout=valid_payload,
             raw_stderr="",
             exit_code=0,
@@ -248,7 +271,7 @@ def test_run_milestone2_retry_exhaustion_sets_agent_output_invalid(
         nonlocal call_count
         _ = prompt, config
         call_count += 1
-        return AgentAttempt(
+        return _agent_attempt(
             raw_stdout="not-json",
             raw_stderr="",
             exit_code=0,
@@ -302,17 +325,21 @@ def test_run_milestone3_post_failure_writes_results_and_fails(
         gitlab_client_cls=_FailingGitLabClient,
     )
 
-    review = ReviewOutput(
+    review = AgentReviewOutput(
         summary_markdown="### Summary",
         findings=[],
-        meta=ReviewMeta(agent="cursor"),
     )
 
     def _run_cursor_once(prompt: str, config) -> AgentAttempt:
         _ = prompt, config
-        return AgentAttempt(raw_stdout="{}", raw_stderr="", exit_code=0, duration_ms=1)
+        return _agent_attempt(
+            raw_stdout="{}",
+            raw_stderr="",
+            exit_code=0,
+            duration_ms=1,
+        )
 
-    def _parse_and_validate(raw: str) -> ReviewOutput:
+    def _parse_and_validate(raw: str) -> AgentReviewOutput:
         _ = raw
         return review
 
@@ -352,14 +379,14 @@ def test_run_milestone2_retries_passthrough_non_output_invalid_error(
 
     def _run_cursor_once(prompt: str, cfg: AppConfig) -> AgentAttempt:
         _ = prompt, cfg
-        return AgentAttempt(
+        return _agent_attempt(
             raw_stdout="{}",
             raw_stderr="",
             exit_code=0,
             duration_ms=1,
         )
 
-    def _parse_and_validate(raw: str) -> ReviewOutput:
+    def _parse_and_validate(raw: str) -> AgentReviewOutput:
         _ = raw
         raise run_module.ReviewerError(
             "parser boom",
@@ -388,22 +415,21 @@ def test_run_milestone2_writes_stderr_artifacts_on_success(
     artifacts = ArtifactStore(tmp_path / ".diffsan")
     events = EventLogger(artifacts.path("events.jsonl"))
     config = AppConfig(agent=AgentConfig(max_json_retries=1))
-    review = ReviewOutput(
+    review = AgentReviewOutput(
         summary_markdown="ok",
         findings=[],
-        meta=ReviewMeta(agent="cursor"),
     )
 
     def _run_cursor_once(prompt: str, cfg: AppConfig) -> AgentAttempt:
         _ = prompt, cfg
-        return AgentAttempt(
+        return _agent_attempt(
             raw_stdout="{}",
             raw_stderr="stderr-log",
             exit_code=0,
             duration_ms=1,
         )
 
-    def _parse_and_validate(raw: str) -> ReviewOutput:
+    def _parse_and_validate(raw: str) -> AgentReviewOutput:
         _ = raw
         return review
 
@@ -418,6 +444,7 @@ def test_run_milestone2_writes_stderr_artifacts_on_success(
     )
 
     assert result.summary_markdown == "ok"
+    assert result.attempt.duration_ms == 1
     assert (artifacts.path("agent.stderr.attempt1.txt")).read_text(
         encoding="utf-8"
     ) == ("stderr-log")
@@ -437,7 +464,7 @@ def test_run_milestone2_writes_stderr_artifact_on_retry_exhaustion(
 
     def _run_cursor_once(prompt: str, cfg: AppConfig) -> AgentAttempt:
         _ = prompt, cfg
-        return AgentAttempt(
+        return _agent_attempt(
             raw_stdout="not-json",
             raw_stderr="stderr-last",
             exit_code=0,

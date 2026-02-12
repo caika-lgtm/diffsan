@@ -296,7 +296,8 @@ Fixture guidance:
 
 3. **Schema contract enforcement**
 
-- Any agent output must validate against `ReviewOutput` Pydantic schema.
+- Any agent output must validate against `AgentReviewOutput` Pydantic schema.
+- `ReviewOutput.meta` should be populated by diffsan runtime, not by agent output.
 - Invalid outputs fail loudly (non-zero exit) and are preserved as artifacts.
 
 4. **Graceful degradation**
