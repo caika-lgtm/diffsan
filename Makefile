@@ -35,7 +35,7 @@ test:
 
 # Run tests with coverage
 test-cov:
-	uv run pytest --cov --cov-report=xml --cov-report=term-missing
+	uv run pytest --cov --cov-fail-under=90 --cov-report=xml --cov-report=term-missing
 
 # Run tests across all Python versions
 test-matrix:
