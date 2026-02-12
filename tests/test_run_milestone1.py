@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import pytest
 
 import diffsan.run as run_module
-from diffsan.contracts.errors import ErrorCode
+from diffsan.contracts.errors import ErrorCode, ReviewerError
 from diffsan.contracts.models import (
     AgentConfig,
     AgentRequest,
@@ -54,6 +55,7 @@ def _patch_pipeline_dependencies(
     *,
     diff_bundle: DiffBundle,
     prepared: PreparedDiff,
+    gitlab_client_cls: type | None = None,
 ) -> None:
     def _get_diff(*, ci: bool) -> DiffBundle:
         _ = ci
@@ -83,13 +85,30 @@ def _patch_pipeline_dependencies(
     monkeypatch.setattr(run_module, "prepare_diff", _prepare_diff)
     monkeypatch.setattr(run_module, "compute_fingerprint", _compute_fingerprint)
     monkeypatch.setattr(run_module, "build_agent_request", _build_agent_request)
+    monkeypatch.setattr(
+        run_module,
+        "GitLabClient",
+        gitlab_client_cls or _FakeGitLabClient,
+    )
+
+
+class _FakeGitLabClient:
+    def __init__(self, config) -> None:
+        _ = config
+
+    def get_mr(self):
+        return SimpleNamespace(status_code=200, payload={"iid": 1}, retry_count=0)
+
+    def create_note(self, body: str):
+        _ = body
+        return SimpleNamespace(note_id=101, status_code=201, retry_count=0)
 
 
 def test_run_milestone1_writes_pipeline_artifacts(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    """Non-dry run writes milestone-1 artifacts and succeeds."""
+    """Non-dry run writes review and posting artifacts and succeeds."""
 
     diff_bundle, prepared = _fixture_diff_and_prepared()
     review = ReviewOutput(
@@ -139,10 +158,18 @@ def test_run_milestone1_writes_pipeline_artifacts(
     assert (workdir / "agent.raw.txt").exists()
     assert (workdir / "agent.raw.attempt1.txt").exists()
     assert (workdir / "review.json").exists()
+    assert (workdir / "post_plan.json").exists()
+    assert (workdir / "post_results.json").exists()
 
     run_payload = json.loads((workdir / "run.json").read_text(encoding="utf-8"))
     assert run_payload["ok"] is True
     assert run_payload["fingerprint"]["value"] == "f" * 64
+    post_results = json.loads(
+        (workdir / "post_results.json").read_text(encoding="utf-8")
+    )
+    assert post_results["ok"] is True
+    assert post_results["items"][0]["kind"] == "summary_note"
+    assert post_results["items"][0]["gitlab_id"] == 101
 
 
 def test_run_milestone2_retries_invalid_then_succeeds(
@@ -249,6 +276,69 @@ def test_run_milestone2_retry_exhaustion_sets_agent_output_invalid(
     run_payload = json.loads((workdir / "run.json").read_text(encoding="utf-8"))
     assert run_payload["ok"] is False
     assert run_payload["error"]["error_code"] == ErrorCode.AGENT_OUTPUT_INVALID
+
+
+def test_run_milestone3_post_failure_writes_results_and_fails(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """GitLab posting failure keeps artifacts and fails the run."""
+    diff_bundle, prepared = _fixture_diff_and_prepared()
+
+    class _FailingGitLabClient(_FakeGitLabClient):
+        def create_note(self, body: str):
+            _ = body
+            raise ReviewerError(
+                "post failed",
+                error_code=ErrorCode.GITLAB_POST_FAILED,
+                retryable=True,
+                context={"status": 429, "retry_count": 2},
+            )
+
+    _patch_pipeline_dependencies(
+        monkeypatch,
+        diff_bundle=diff_bundle,
+        prepared=prepared,
+        gitlab_client_cls=_FailingGitLabClient,
+    )
+
+    review = ReviewOutput(
+        summary_markdown="### Summary",
+        findings=[],
+        meta=ReviewMeta(agent="cursor"),
+    )
+
+    def _run_cursor_once(prompt: str, config) -> AgentAttempt:
+        _ = prompt, config
+        return AgentAttempt(raw_stdout="{}", raw_stderr="", exit_code=0, duration_ms=1)
+
+    def _parse_and_validate(raw: str) -> ReviewOutput:
+        _ = raw
+        return review
+
+    monkeypatch.setattr(run_module, "run_cursor_once", _run_cursor_once)
+    monkeypatch.setattr(run_module, "parse_and_validate", _parse_and_validate)
+    monkeypatch.setattr(run_module, "print_summary_markdown", lambda _: None)
+
+    workdir = tmp_path / ".diffsan"
+    result = run_module.run(RunOptions(ci=True, dry_run=False, workdir=str(workdir)))
+
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.error_code == ErrorCode.GITLAB_POST_FAILED
+    assert (workdir / "post_plan.json").exists()
+    assert (workdir / "post_results.json").exists()
+
+    post_results = json.loads(
+        (workdir / "post_results.json").read_text(encoding="utf-8")
+    )
+    assert post_results["ok"] is False
+    assert post_results["items"][0]["kind"] == "summary_note"
+    assert post_results["items"][0]["http_status"] == 429
+    assert post_results["items"][0]["retry_count"] == 2
+    assert (
+        post_results["items"][0]["error"]["error_code"] == ErrorCode.GITLAB_POST_FAILED
+    )
 
 
 def test_run_milestone2_retries_passthrough_non_output_invalid_error(
