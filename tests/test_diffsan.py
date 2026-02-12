@@ -3,10 +3,12 @@
 import json
 import re
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from typer.testing import CliRunner
 
+import diffsan.cli as cli_module
 from diffsan import __version__
 from diffsan.cli import app
 from diffsan.contracts.errors import ErrorCode, ReviewerError
@@ -106,6 +108,32 @@ def test_cli_non_ci_failure_prints_events(tmp_path: Path) -> None:
     assert "error_code=DIFF_FETCH_FAILED" in result.output
     assert "supports CI mode only" in result.output
     assert "[diffsan] run.finished | ok=False" in result.output
+
+
+def test_cli_note_timezone_option_is_forwarded(tmp_path: Path, monkeypatch) -> None:
+    """CLI forwards note timezone option into RunOptions."""
+    captured: dict[str, object] = {}
+
+    def _fake_run(options):
+        captured["options"] = options
+        return SimpleNamespace(ok=True)
+
+    monkeypatch.setattr(cli_module, "run", _fake_run)
+
+    result = runner.invoke(
+        app,
+        [
+            "--dry-run",
+            "--workdir",
+            str(tmp_path / ".diffsan"),
+            "--note-timezone",
+            "UTC",
+        ],
+    )
+
+    assert result.exit_code == 0
+    options = captured["options"]
+    assert getattr(options, "note_timezone", None) == "UTC"
 
 
 def test_run_workdir_creation_failure_falls_back_to_default(

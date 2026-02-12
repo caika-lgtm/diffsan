@@ -160,6 +160,7 @@ def test_run_milestone1_writes_pipeline_artifacts(
     monkeypatch.setattr(run_module, "run_cursor_once", _run_cursor_once)
     monkeypatch.setattr(run_module, "parse_and_validate", _parse_and_validate)
     monkeypatch.setattr(run_module, "print_summary_markdown", _print_summary_markdown)
+    monkeypatch.setenv("CI_PIPELINE_ID", "777")
 
     workdir = tmp_path / ".diffsan"
     result = run_module.run(RunOptions(ci=True, dry_run=False, workdir=str(workdir)))
@@ -182,12 +183,16 @@ def test_run_milestone1_writes_pipeline_artifacts(
 
     run_payload = json.loads((workdir / "run.json").read_text(encoding="utf-8"))
     review_payload = json.loads((workdir / "review.json").read_text(encoding="utf-8"))
+    post_plan_payload = json.loads(
+        (workdir / "post_plan.json").read_text(encoding="utf-8")
+    )
     assert run_payload["ok"] is True
     assert run_payload["fingerprint"]["value"] == "f" * 64
     assert review_payload["meta"]["fingerprint"]["value"] == "f" * 64
     assert review_payload["meta"]["agent"] == "cursor"
     assert review_payload["meta"]["timings"]["duration_ms"] == 1
     assert review_payload["meta"]["token_usage"] == {}
+    assert "**MR pipeline ID:** `777`" in post_plan_payload["summary_meta_collapsible"]
     post_results = json.loads(
         (workdir / "post_results.json").read_text(encoding="utf-8")
     )
