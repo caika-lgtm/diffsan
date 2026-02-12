@@ -237,3 +237,83 @@ def test_build_post_plan_maps_discussions_and_unpositioned_findings() -> None:
     assert plan.discussions[0].position.new_line == 2
     assert "### Unpositioned findings" in plan.summary_markdown
     assert "`src/main.py:42`" in plan.summary_markdown
+
+
+def test_build_post_plan_unpositioned_section_without_summary_and_long_body() -> None:
+    """Unpositioned-only output should render section and truncate long body preview."""
+    review = ReviewOutput(
+        summary_markdown="",
+        findings=[
+            Finding(
+                severity="medium",
+                category="maintainability",
+                path="./b/src/main.py",
+                line_start=9,
+                line_end=9,
+                body_markdown=("long " * 80).strip(),
+            )
+        ],
+        meta=ReviewMeta(agent="cursor"),
+    )
+
+    plan = build_post_plan(
+        review=review,
+        config=AppConfig(),
+        fallback_fingerprint=None,
+        note_timezone="SGT",
+    )
+
+    assert plan.discussions == []
+    assert plan.summary_markdown.startswith("### Unpositioned findings")
+    assert "`src/main.py:9`" in plan.summary_markdown
+    assert "..." in plan.summary_markdown
+
+
+def test_build_post_plan_handles_backslash_hunk_line_and_mismatch_path() -> None:
+    """Diff parser ignores '\\' hunk lines and mismatched paths stay unpositioned."""
+    review = ReviewOutput(
+        summary_markdown="summary",
+        findings=[
+            Finding(
+                severity="low",
+                category="style",
+                path="a/src/main.py",
+                line_start=2,
+                line_end=2,
+                body_markdown="style nits",
+            ),
+            Finding(
+                severity="low",
+                category="style",
+                path="src/other.py",
+                line_start=2,
+                line_end=2,
+                body_markdown="won't map",
+            ),
+        ],
+        meta=ReviewMeta(agent="cursor"),
+    )
+    prepared_diff = (
+        "diff --git a/src/main.py b/src/main.py\n"
+        "--- a/src/main.py\n"
+        "+++ b/src/main.py\n"
+        "@@ -1 +1,2 @@\n"
+        " old\n"
+        "+new\n"
+        "\\ No newline at end of file\n"
+    )
+
+    plan = build_post_plan(
+        review=review,
+        config=AppConfig(),
+        fallback_fingerprint=None,
+        note_timezone="SGT",
+        prepared_diff=prepared_diff,
+        diff_ref=DiffRef(base_sha="a" * 40, head_sha="b" * 40),
+    )
+
+    assert len(plan.discussions) == 1
+    assert plan.discussions[0].position is not None
+    assert plan.discussions[0].position.new_path == "src/main.py"
+    assert plan.discussions[0].position.new_line == 2
+    assert "`src/other.py:2`" in plan.summary_markdown
