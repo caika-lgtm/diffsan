@@ -234,6 +234,7 @@ def test_build_post_plan_maps_discussions_and_unpositioned_findings() -> None:
     assert len(plan.discussions) == 1
     assert plan.discussions[0].path == "src/main.py"
     assert plan.discussions[0].position is not None
+    assert plan.discussions[0].position.position_type == "text"
     assert plan.discussions[0].position.new_line == 2
     assert "### Unpositioned findings" in plan.summary_markdown
     assert "`src/main.py:42`" in plan.summary_markdown
@@ -314,6 +315,7 @@ def test_build_post_plan_handles_backslash_hunk_line_and_mismatch_path() -> None
 
     assert len(plan.discussions) == 1
     assert plan.discussions[0].position is not None
+    assert plan.discussions[0].position.position_type == "text"
     assert plan.discussions[0].position.new_path == "src/main.py"
     assert plan.discussions[0].position.new_line == 2
     assert "`src/other.py:2`" in plan.summary_markdown
