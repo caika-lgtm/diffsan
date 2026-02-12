@@ -59,7 +59,10 @@ Fields are grouped for clarity. Exact defaults are implementation-defined but sh
     "extra_patterns": [],
     "post_warning_to_mr": true
   },
-  "skip": { "skip_on_auto_merge": true },
+  "skip": {
+    "skip_on_auto_merge": true,
+    "skip_on_same_fingerprint": true
+  },
   "agent": {
     "agent": "cursor",
     "cursor_command": null,
@@ -325,6 +328,12 @@ Each finding must include:
   ]
 }
 ```
+
+Summary note body should include:
+
+- tag marker: `<!-- diffsan:<summary_note_tag> -->`
+- fingerprint marker: `<!-- diffsan:fingerprint:<algo>:<value> -->`
+- prior digest marker (when available): `<!-- diffsan:prior_digest:<base64-json> -->`
 
 ---
 

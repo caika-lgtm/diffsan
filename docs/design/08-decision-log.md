@@ -147,3 +147,11 @@ When changing a decision, add a new entry (do not rewrite history).
 **Decision:** Standalone mode prints to stdout and writes artifacts, but does not post to GitLab.
 **Why:** Keep MVP small; CI is the priority.
 **Implications:** CLI flags should make CI mode explicit; standalone accepts simplest diff source.
+
+---
+
+## D019 — Skip on same fingerprint enabled by default
+
+**Decision:** Add `skip_on_same_fingerprint=true` by default; skip when current diff fingerprint equals latest prior diffsan summary fingerprint.
+**Why:** Reduce duplicate reviews/spam on re-runs with unchanged diff content.
+**Implications:** Summary notes include a machine-readable fingerprint marker; skip logic compares current fingerprint against latest prior note context.

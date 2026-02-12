@@ -67,6 +67,7 @@ class SecretsConfig(StrictModel):
 
 class SkipConfig(StrictModel):
     skip_on_auto_merge: bool = True
+    skip_on_same_fingerprint: bool = True
 
 
 class AgentConfig(StrictModel):

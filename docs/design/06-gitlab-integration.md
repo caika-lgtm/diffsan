@@ -95,11 +95,14 @@ If `git diff` fails, optionally:
 
 ---
 
-## 4) Skip condition: Auto-merge (MVP)
+## 4) Skip conditions (MVP)
 
 ### Goal
 
-If the MR has auto-merge enabled (or equivalent), `diffsan` should **silently skip** posting and only output to stdout.
+`diffsan` should skip posting and only output skip reason to stdout when either:
+
+- auto-merge is enabled (or equivalent), or
+- `skip_on_same_fingerprint=true` and the latest prior diffsan summary note has the same fingerprint as the current diff.
 
 ### Detection approach
 
@@ -117,6 +120,10 @@ Use GitLab API to fetch MR details and read the field(s) that indicate:
   - check presence of known fields (e.g., `merge_when_pipeline_succeeds`, `auto_merge_enabled`, `merge_status`, etc.)
   - if uncertain, emit event `skip.auto_merge.unknown` and **do not skip** (fail-open for MVP).
 - If `skip_on_auto_merge=true` and auto-merge detected:
+  - `SkipDecision.should_skip = true`
+  - do not post to MR
+  - still write artifacts that were already produced (at least `events.jsonl` + `run.json`)
+- If `skip_on_same_fingerprint=true` and latest prior fingerprint equals current fingerprint:
   - `SkipDecision.should_skip = true`
   - do not post to MR
   - still write artifacts that were already produced (at least `events.jsonl` + `run.json`)
@@ -149,6 +156,10 @@ To find previous diffsan notes, include a small marker:
 
 - e.g. a line near the top or bottom:
   - `<!-- diffsan:ai-reviewer -->`
+- include fingerprint marker for fast re-run detection:
+  - `<!-- diffsan:fingerprint:sha256:<value> -->`
+- include a machine-readable digest marker for future runs:
+  - `<!-- diffsan:prior_digest:<base64-json> -->`
 - or a consistent heading prefix.
 
 Config:
@@ -208,6 +219,9 @@ If GitLab returns `400` with message like “position is invalid”:
 - fingerprint: `sha256:<value>`
 - compact digest: a short list of prior findings
   - `finding_id`, `title`, `severity`, `path`, `line range`
+- preferred source is the embedded digest marker payload; if absent, fall back to
+  parsing the fingerprint marker comment; if that is absent, fall back to
+  parsing the metadata fingerprint line.
 
 **Robustness**
 

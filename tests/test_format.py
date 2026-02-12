@@ -83,6 +83,8 @@ def test_build_summary_note_body_includes_tag_and_truncation_and_warning() -> No
     body = build_summary_note_body(
         post_plan=plan,
         summary_note_tag="ai-reviewer",
+        fingerprint_marker="<!-- diffsan:fingerprint:sha256:abc -->",
+        prior_digest_marker="<!-- diffsan:prior_digest:abc -->",
         truncation=truncation,
         redaction_found=True,
         include_secret_warning=True,
@@ -91,6 +93,8 @@ def test_build_summary_note_body_includes_tag_and_truncation_and_warning() -> No
     assert "## **diffsan** Summary" in body
     assert "<sub><em>Automated merge request review</em></sub>" in body
     assert "<!-- diffsan:ai-reviewer -->" in body
+    assert "<!-- diffsan:fingerprint:sha256:abc -->" in body
+    assert "<!-- diffsan:prior_digest:abc -->" in body
     assert "<details><summary><strong>Truncation details</strong></summary>" in body
     assert "**Original chars:** `1000`" in body
     assert "`[file]` `docs/readme.md` Dropped" in body

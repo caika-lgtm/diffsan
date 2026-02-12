@@ -23,11 +23,14 @@ from diffsan.contracts.models import (
     Finding,
     Fingerprint,
     PreparedDiff,
+    PriorDigest,
+    PriorFinding,
     RedactionReport,
     ReviewOutput,
     TruncationReport,
 )
 from diffsan.core.agent_cursor import AgentAttempt
+from diffsan.core.prior import encode_fingerprint_marker, encode_prior_digest_marker
 from diffsan.io.artifacts import ArtifactStore
 from diffsan.io.logging import EventLogger
 from diffsan.run import RunOptions
@@ -105,8 +108,9 @@ def _patch_pipeline_dependencies(
         config,
         prepared: PreparedDiff,
         fingerprint: Fingerprint,
+        prior_digest=None,
     ) -> AgentRequest:
-        _ = config, prepared
+        _ = config, prepared, prior_digest
         return AgentRequest(
             prompt="prompt",
             meta=AgentRequestMeta(fingerprint=fingerprint),
@@ -129,6 +133,9 @@ class _FakeGitLabClient:
 
     def get_mr(self):
         return SimpleNamespace(status_code=200, payload={"iid": 1}, retry_count=0)
+
+    def list_notes(self):
+        return SimpleNamespace(status_code=200, payload=[], retry_count=0)
 
     def create_note(self, body: str):
         _ = body
@@ -189,6 +196,7 @@ def test_run_milestone1_writes_pipeline_artifacts(
     assert (workdir / "diff.prepared.patch").exists()
     assert (workdir / "truncation.json").exists()
     assert (workdir / "redaction.json").exists()
+    assert (workdir / "prior_digest.json").exists()
     assert (workdir / "prompt.txt").exists()
     assert (workdir / "agent.raw.txt").exists()
     assert (workdir / "agent.raw.attempt1.txt").exists()
@@ -806,3 +814,193 @@ def test_run_milestone2_writes_stderr_artifact_on_retry_exhaustion(
     assert (artifacts.path("agent.stderr.txt")).read_text(encoding="utf-8") == (
         "stderr-last"
     )
+
+
+def test_run_milestone5_auto_merge_skip_short_circuits_pipeline(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Auto-merge MR should skip prompt/agent/post stages."""
+    diff_bundle, prepared = _fixture_diff_and_prepared()
+
+    class _AutoMergeGitLabClient(_FakeGitLabClient):
+        def get_mr(self):
+            return SimpleNamespace(
+                status_code=200,
+                payload={"iid": 1, "merge_when_pipeline_succeeds": True},
+                retry_count=0,
+            )
+
+    _patch_pipeline_dependencies(
+        monkeypatch,
+        diff_bundle=diff_bundle,
+        prepared=prepared,
+        gitlab_client_cls=_AutoMergeGitLabClient,
+    )
+
+    def _should_not_run_cursor(*_args, **_kwargs):
+        raise AssertionError("no agent call")
+
+    monkeypatch.setattr(run_module, "run_cursor_once", _should_not_run_cursor)
+
+    workdir = tmp_path / ".diffsan"
+    result = run_module.run(RunOptions(ci=True, dry_run=False, workdir=str(workdir)))
+
+    assert result.ok is True
+    assert result.skipped is True
+    assert result.skip_reasons[0].code == "AUTO_MERGE"
+    assert (workdir / "prior_digest.json").exists()
+    assert not (workdir / "prompt.txt").exists()
+    assert not (workdir / "review.json").exists()
+    assert not (workdir / "post_plan.json").exists()
+    assert not (workdir / "post_results.json").exists()
+
+    run_payload = json.loads((workdir / "run.json").read_text(encoding="utf-8"))
+    assert run_payload["ok"] is True
+    assert run_payload["skipped"] is True
+    assert run_payload["skip_reasons"][0]["code"] == "AUTO_MERGE"
+
+
+def test_run_milestone5_same_fingerprint_skip_short_circuits_pipeline(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Matching prior fingerprint should skip even without auto-merge."""
+    diff_bundle, prepared = _fixture_diff_and_prepared()
+
+    class _SameFingerprintGitLabClient(_FakeGitLabClient):
+        def list_notes(self):
+            body = "\n".join(
+                [
+                    "## **diffsan** Summary",
+                    "<!-- diffsan:ai-reviewer -->",
+                    encode_fingerprint_marker(Fingerprint(value="f" * 64)),
+                ]
+            )
+            return SimpleNamespace(
+                status_code=200,
+                payload=[{"id": 201, "body": body}],
+                retry_count=0,
+            )
+
+    _patch_pipeline_dependencies(
+        monkeypatch,
+        diff_bundle=diff_bundle,
+        prepared=prepared,
+        gitlab_client_cls=_SameFingerprintGitLabClient,
+    )
+
+    def _should_not_run_cursor(*_args, **_kwargs):
+        raise AssertionError("no agent call")
+
+    monkeypatch.setattr(run_module, "run_cursor_once", _should_not_run_cursor)
+
+    workdir = tmp_path / ".diffsan"
+    result = run_module.run(RunOptions(ci=True, dry_run=False, workdir=str(workdir)))
+
+    assert result.ok is True
+    assert result.skipped is True
+    assert any(reason.code == "SAME_FINGERPRINT" for reason in result.skip_reasons)
+    assert (workdir / "prior_digest.json").exists()
+    assert not (workdir / "prompt.txt").exists()
+    assert not (workdir / "review.json").exists()
+
+    run_payload = json.loads((workdir / "run.json").read_text(encoding="utf-8"))
+    assert run_payload["ok"] is True
+    assert run_payload["skipped"] is True
+    assert any(
+        reason["code"] == "SAME_FINGERPRINT" for reason in run_payload["skip_reasons"]
+    )
+
+
+def test_run_milestone5_prior_digest_is_injected_into_prompt_request(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Prior digest from tagged summary notes should be injected into request."""
+    diff_bundle, prepared = _fixture_diff_and_prepared()
+    prior_digest = PriorDigest(
+        prior_fingerprint=Fingerprint(value="1" * 64),
+        findings=[
+            PriorFinding(
+                finding_id="f-old",
+                path="a.py",
+                line_range="2-3",
+                title="Old issue",
+                severity="medium",
+            )
+        ],
+        summary_hint="Previous summary",
+    )
+
+    class _PriorDigestGitLabClient(_FakeGitLabClient):
+        def list_notes(self):
+            body = "\n".join(
+                [
+                    "## **diffsan** Summary",
+                    "<!-- diffsan:ai-reviewer -->",
+                    encode_prior_digest_marker(prior_digest),
+                ]
+            )
+            return SimpleNamespace(
+                status_code=200,
+                payload=[{"id": 99, "body": body}],
+                retry_count=0,
+            )
+
+    captured_prior: dict[str, object] = {}
+
+    def _build_agent_request(
+        *,
+        config,
+        prepared: PreparedDiff,
+        fingerprint: Fingerprint,
+        prior_digest,
+    ) -> AgentRequest:
+        _ = config, prepared
+        captured_prior["value"] = prior_digest
+        return AgentRequest(
+            prompt="prompt",
+            meta=AgentRequestMeta(fingerprint=fingerprint),
+        )
+
+    review = AgentReviewOutput(summary_markdown="### Summary", findings=[])
+
+    def _run_cursor_once(prompt: str, config) -> AgentAttempt:
+        _ = prompt, config
+        return _agent_attempt(
+            raw_stdout="{}",
+            raw_stderr="",
+            exit_code=0,
+            duration_ms=1,
+        )
+
+    def _parse_and_validate(raw: str) -> AgentReviewOutput:
+        _ = raw
+        return review
+
+    _patch_pipeline_dependencies(
+        monkeypatch,
+        diff_bundle=diff_bundle,
+        prepared=prepared,
+        gitlab_client_cls=_PriorDigestGitLabClient,
+    )
+    monkeypatch.setattr(run_module, "build_agent_request", _build_agent_request)
+    monkeypatch.setattr(run_module, "run_cursor_once", _run_cursor_once)
+    monkeypatch.setattr(run_module, "parse_and_validate", _parse_and_validate)
+    monkeypatch.setattr(run_module, "print_summary_markdown", lambda _: None)
+
+    workdir = tmp_path / ".diffsan"
+    result = run_module.run(RunOptions(ci=True, dry_run=False, workdir=str(workdir)))
+
+    assert result.ok is True
+    injected = cast("PriorDigest", captured_prior["value"])
+    assert injected.prior_fingerprint is not None
+    assert injected.prior_fingerprint.value == "1" * 64
+    assert injected.findings[0].finding_id == "f-old"
+
+    prior_digest_payload = json.loads(
+        (workdir / "prior_digest.json").read_text(encoding="utf-8")
+    )
+    assert prior_digest_payload["prior_fingerprint"]["value"] == "1" * 64
+    assert prior_digest_payload["findings"][0]["finding_id"] == "f-old"
