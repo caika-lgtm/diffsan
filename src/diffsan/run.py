@@ -12,12 +12,15 @@ from diffsan.contracts.events import EventLevel, EventName
 from diffsan.contracts.models import (
     AppConfig,
     ArtifactPointers,
+    Finding,
     Fingerprint,
     ModeConfig,
     PostResultItem,
     PostResults,
+    ReviewMeta,
     ReviewOutput,
     RunResult,
+    TimingMeta,
     TruncationReport,
 )
 from diffsan.core.agent_cursor import AgentAttempt, run_cursor_once
@@ -67,6 +70,15 @@ class PipelineOutcome:
 
     skipped: bool = False
     fingerprint: Fingerprint | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ValidatedAgentOutput:
+    """Validated agent-owned review fields and the source attempt timing."""
+
+    summary_markdown: str
+    findings: list[Finding]
+    attempt: AgentAttempt
 
 
 def run(options: RunOptions) -> RunResult:
@@ -232,23 +244,27 @@ def _run_pipeline(
         data={"path": PROMPT_ARTIFACT_NAME, "chars": len(request.prompt)},
     )
 
-    review = _run_agent_with_retries(
+    agent_review = _run_agent_with_retries(
         request_prompt=request.prompt,
         config=_config,
         artifacts=_artifacts,
         events=events,
     )
-    review = review.model_copy(
-        update={
-            "meta": review.meta.model_copy(
-                update={
-                    "fingerprint": review.meta.fingerprint or fingerprint,
-                    "agent": review.meta.agent or _config.agent.agent,
-                    "truncated": prepared.truncation.truncated,
-                    "redaction_found": prepared.redaction.found,
-                }
-            )
-        }
+    review = ReviewOutput(
+        summary_markdown=agent_review.summary_markdown,
+        findings=agent_review.findings,
+        meta=ReviewMeta(
+            fingerprint=fingerprint,
+            agent=_config.agent.agent,
+            timings=TimingMeta(
+                started_at=agent_review.attempt.started_at,
+                ended_at=agent_review.attempt.ended_at,
+                duration_ms=agent_review.attempt.duration_ms,
+            ),
+            token_usage={},
+            truncated=prepared.truncation.truncated,
+            redaction_found=prepared.redaction.found,
+        ),
     )
     _artifacts.write_json(REVIEW_ARTIFACT_NAME, review)
     events.emit(
@@ -279,7 +295,7 @@ def _run_agent_with_retries(
     config: AppConfig,
     artifacts: ArtifactStore,
     events: EventLogger,
-) -> ReviewOutput:
+) -> ValidatedAgentOutput:
     max_attempts = max(1, config.agent.max_json_retries)
     prompt = request_prompt
     last_invalid_error: ReviewerError | None = None
@@ -320,7 +336,11 @@ def _run_agent_with_retries(
         artifacts.write_text(RAW_OUTPUT_ARTIFACT_NAME, attempt.raw_stdout)
         if attempt.raw_stderr:
             artifacts.write_text(RAW_STDERR_ARTIFACT_NAME, attempt.raw_stderr)
-        return review
+        return ValidatedAgentOutput(
+            summary_markdown=review.summary_markdown,
+            findings=review.findings,
+            attempt=attempt,
+        )
 
     if last_attempt is not None:
         artifacts.write_text(RAW_OUTPUT_ARTIFACT_NAME, last_attempt.raw_stdout)

@@ -245,6 +245,11 @@ class ReviewMeta(StrictModel):
     redaction_found: bool = False
 
 
+class AgentReviewOutput(StrictModel):
+    summary_markdown: str
+    findings: list[Finding] = Field(default_factory=list)
+
+
 class ReviewOutput(StrictModel):
     summary_markdown: str
     findings: list[Finding] = Field(default_factory=list)

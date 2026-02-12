@@ -2,7 +2,7 @@ This document defines how `diffsan` builds prompts and handles Cursor’s unstru
 
 ## Goals
 
-- The agent must output **ONLY valid JSON** matching `ReviewOutput`.
+- The agent must output **ONLY valid JSON** matching `AgentReviewOutput`.
 - Avoid spam:
   - verbosity is configurable
   - inject compact prior digest
@@ -34,7 +34,7 @@ This document defines how `diffsan` builds prompts and handles Cursor’s unstru
    - “Return ONLY valid JSON. No markdown, no code fences, no commentary.”
    - “Must match the schema exactly.”
 3. **Schema**
-   - Embed the `ReviewOutput` schema description (field names/types and allowed enums)
+   - Embed the `AgentReviewOutput` schema description (field names/types and allowed enums)
 4. **Review instructions**
    - Prioritize correctness/security first
    - Keep comments concise and actionable
@@ -64,7 +64,7 @@ This document defines how `diffsan` builds prompts and handles Cursor’s unstru
 ### Recommended guardrails
 
 - Provide an explicit “example structure” (not too large), e.g.:
-  - top-level fields: `summary_markdown`, `findings`, `meta`
+  - top-level fields: `summary_markdown`, `findings`
 - Enumerate allowed `severity` and `category` values.
 - Require numeric `line_start`/`line_end` (integers).
 
@@ -78,7 +78,7 @@ Cursor CLI does not guarantee structured output. `diffsan` must:
 2. Attempt to parse JSON strictly.
    - If using `cursor-agent --output-format json`, unwrap the outer envelope and
      parse the nested `result` JSON string before validating against
-     `ReviewOutput`.
+     `AgentReviewOutput`.
 3. Validate with Pydantic.
 4. If parsing/validation fails, retry with a repair prompt.
 
@@ -117,7 +117,7 @@ Constraints:
 Validation errors:
 
 * findings[0].line_start: field required
-* meta.fingerprint.value: field required
+* findings[0].line_end: field required
 
 Here is your previous output:
 <<<
@@ -209,7 +209,7 @@ Skill text must be short to avoid prompt bloat.
 
 ```
 
-Return ONLY valid JSON for the schema ReviewOutput.
+Return ONLY valid JSON for the schema AgentReviewOutput.
 No markdown, no backticks, no extra text.
 
 Prioritize correctness and security issues.

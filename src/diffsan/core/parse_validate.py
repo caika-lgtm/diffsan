@@ -8,11 +8,11 @@ from typing import Any
 from pydantic import ValidationError
 
 from diffsan.contracts.errors import ErrorCode, ReviewerError
-from diffsan.contracts.models import ReviewOutput
+from diffsan.contracts.models import AgentReviewOutput
 
 
-def parse_and_validate(raw_output: str) -> ReviewOutput:
-    """Parse agent raw output and validate against ReviewOutput schema."""
+def parse_and_validate(raw_output: str) -> AgentReviewOutput:
+    """Parse agent raw output and validate agent-owned review fields."""
     try:
         payload = json.loads(raw_output)
     except json.JSONDecodeError as exc:
@@ -26,7 +26,7 @@ def parse_and_validate(raw_output: str) -> ReviewOutput:
     candidate_payload = _extract_candidate_payload(payload)
 
     try:
-        return ReviewOutput.model_validate(candidate_payload)
+        return AgentReviewOutput.model_validate(candidate_payload)
     except ValidationError as exc:
         raise ReviewerError(
             "Agent output failed schema validation",
