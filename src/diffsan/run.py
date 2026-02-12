@@ -14,13 +14,21 @@ from diffsan.contracts.models import (
     ArtifactPointers,
     Fingerprint,
     ModeConfig,
+    PostResultItem,
+    PostResults,
     ReviewOutput,
     RunResult,
+    TruncationReport,
 )
 from diffsan.core.agent_cursor import AgentAttempt, run_cursor_once
 from diffsan.core.diff_provider import get_diff
 from diffsan.core.fingerprint import compute_fingerprint
-from diffsan.core.format import print_summary_markdown
+from diffsan.core.format import (
+    build_post_plan,
+    build_summary_note_body,
+    print_summary_markdown,
+)
+from diffsan.core.gitlab import GitLabClient
 from diffsan.core.parse_validate import parse_and_validate
 from diffsan.core.preprocess import prepare_diff
 from diffsan.core.prompt import build_agent_request, build_json_repair_prompt
@@ -40,6 +48,8 @@ RAW_STDERR_ARTIFACT_NAME: Final[str] = "agent.stderr.txt"
 RAW_OUTPUT_ATTEMPT_ARTIFACT_TEMPLATE: Final[str] = "agent.raw.attempt{attempt}.txt"
 RAW_STDERR_ATTEMPT_ARTIFACT_TEMPLATE: Final[str] = "agent.stderr.attempt{attempt}.txt"
 REVIEW_ARTIFACT_NAME: Final[str] = "review.json"
+POST_PLAN_ARTIFACT_NAME: Final[str] = "post_plan.json"
+POST_RESULTS_ARTIFACT_NAME: Final[str] = "post_results.json"
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,7 +178,7 @@ def _run_pipeline(
     _artifacts: ArtifactStore,
     events: EventLogger,
 ) -> PipelineOutcome:
-    """Milestone-2 pipeline: diff -> prompt -> agent retries -> validate -> stdout."""
+    """Milestone-3 pipeline: review generation plus GitLab summary note posting."""
     if options.dry_run:
         events.emit(
             EventName.SKIP_DECIDED,
@@ -250,6 +260,16 @@ def _run_pipeline(
     )
 
     print_summary_markdown(review)
+    if _config.mode.ci and _config.gitlab.enabled:
+        _post_summary_note_to_gitlab(
+            config=_config,
+            artifacts=_artifacts,
+            events=events,
+            review=review,
+            fingerprint=fingerprint,
+            truncation=prepared.truncation,
+        )
+
     return PipelineOutcome(skipped=False, fingerprint=fingerprint)
 
 
@@ -343,3 +363,99 @@ def _write_attempt_artifacts(
             RAW_STDERR_ATTEMPT_ARTIFACT_TEMPLATE.format(attempt=attempt_number),
             attempt.raw_stderr,
         )
+
+
+def _post_summary_note_to_gitlab(
+    *,
+    config: AppConfig,
+    artifacts: ArtifactStore,
+    events: EventLogger,
+    review: ReviewOutput,
+    fingerprint: Fingerprint,
+    truncation: TruncationReport,
+) -> None:
+    post_plan = build_post_plan(
+        review=review,
+        config=config,
+        fallback_fingerprint=fingerprint,
+    )
+    artifacts.write_json(POST_PLAN_ARTIFACT_NAME, post_plan)
+    events.emit(
+        EventName.POST_PLAN_BUILT,
+        data={
+            "discussions": len(post_plan.discussions),
+            "idempotent_summary": post_plan.idempotent_summary,
+        },
+    )
+
+    note_body = build_summary_note_body(
+        post_plan=post_plan,
+        summary_note_tag=config.gitlab.summary_note_tag,
+        truncation=truncation,
+        redaction_found=review.meta.redaction_found,
+        include_secret_warning=config.secrets.post_warning_to_mr,
+    )
+
+    client = GitLabClient(config.gitlab)
+    try:
+        client.get_mr()
+        note_result = client.create_note(note_body)
+    except ReviewerError as exc:
+        retry_count = _extract_retry_count(exc)
+        http_status = _extract_http_status(exc)
+        post_results = PostResults(
+            ok=False,
+            items=[
+                PostResultItem(
+                    kind="summary_note",
+                    ok=False,
+                    http_status=http_status,
+                    retry_count=retry_count,
+                    error=exc.error_info,
+                )
+            ],
+        )
+        artifacts.write_json(POST_RESULTS_ARTIFACT_NAME, post_results)
+        events.emit(
+            EventName.GITLAB_POST_SUMMARY,
+            level=EventLevel.ERROR,
+            data={
+                "ok": False,
+                "http_status": http_status,
+                "retry": retry_count,
+            },
+        )
+        raise
+
+    post_results = PostResults(
+        ok=True,
+        items=[
+            PostResultItem(
+                kind="summary_note",
+                ok=True,
+                http_status=note_result.status_code,
+                gitlab_id=note_result.note_id,
+                retry_count=note_result.retry_count,
+            )
+        ],
+    )
+    artifacts.write_json(POST_RESULTS_ARTIFACT_NAME, post_results)
+    events.emit(
+        EventName.GITLAB_POST_SUMMARY,
+        data={
+            "ok": True,
+            "http_status": note_result.status_code,
+            "id": note_result.note_id,
+            "retry": note_result.retry_count,
+        },
+    )
+
+
+def _extract_http_status(error: ReviewerError) -> int | None:
+    status = error.error_info.context.get("status")
+    return status if isinstance(status, int) else None
+
+
+def _extract_retry_count(error: ReviewerError) -> int:
+    retry_count = error.error_info.context.get("retry_count")
+    return retry_count if isinstance(retry_count, int) else 0
