@@ -53,12 +53,30 @@ def main(
             help="Directory for run artifacts.",
         ),
     ] = DEFAULT_WORKDIR_PATH,
+    note_timezone: Annotated[
+        str,
+        typer.Option(
+            "--note-timezone",
+            envvar="DIFFSAN_NOTE_TIMEZONE",
+            help=(
+                "Timezone used in MR summary note metadata "
+                "(e.g. SGT, UTC, Asia/Singapore)."
+            ),
+        ),
+    ] = "SGT",
 ) -> None:
     """Run diffsan."""
     if ctx.invoked_subcommand is not None:
         return
 
-    result = run(RunOptions(ci=ci, dry_run=dry_run, workdir=str(workdir)))
+    result = run(
+        RunOptions(
+            ci=ci,
+            dry_run=dry_run,
+            workdir=str(workdir),
+            note_timezone=note_timezone,
+        )
+    )
     raise typer.Exit(code=0 if result.ok else 1)
 
 

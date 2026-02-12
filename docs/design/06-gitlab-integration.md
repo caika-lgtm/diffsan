@@ -131,7 +131,10 @@ Post a single MR note containing:
 
 - `summary_markdown` from the agent
 - a collapsible `<details>` metadata section (fingerprint, agent info, timings, token usage if available, flags)
-- a collapsible truncation section describing what was omitted
+- include total findings count and MR pipeline id (when available from CI)
+- human-readable timestamps and duration in metadata
+  - timezone is configurable via CLI (`--note-timezone`), default `SGT`
+- a collapsible truncation section describing what was omitted (only when truncation occurred)
 - if secrets were detected during scan, include a warning section (never include raw secret)
 
 ### Endpoint (typical)
@@ -265,7 +268,7 @@ The following artifacts are written for debuggability:
 
 ```json
 {
-  "body": "### AI Review Summary\n...\n\n<!-- diffsan:ai-reviewer -->\n\n<details><summary>Metadata</summary>\n- fingerprint: sha256:abcd...\n- agent: cursor\n- duration_ms: 33000\n- truncated: true\n- redaction_found: false\n</details>\n\n<details><summary>Truncation</summary>\nOmitted 18 files due to max_files.\n</details>"
+  "body": "## **diffsan** Summary\n<sub><em>Automated merge request review</em></sub>\n\n### AI Review Summary\n...\n\n<!-- diffsan:ai-reviewer -->\n\n<details><summary><strong>Metadata</strong></summary>\n- **Fingerprint:** `sha256:abcd...`\n- **Agent:** `cursor`\n- **Findings:** `3`\n- **MR pipeline ID:** `123456789`\n- **Started:** `12 Feb 2026, 4:34PM SGT`\n- **Ended:** `12 Feb 2026, 4:35PM SGT`\n- **Duration:** `36.0 s`\n- **Truncated:** `true`\n- **Redaction found:** `false`\n</details>\n\n<details><summary><strong>Truncation details</strong></summary>\n- **Original files:** `48`\n- **Final files:** `30`\n</details>"
 }
 ```
 
