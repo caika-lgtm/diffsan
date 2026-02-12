@@ -386,6 +386,78 @@ def test_run_milestone3_post_failure_writes_results_and_fails(
     )
 
 
+def test_run_milestone4_get_mr_failure_writes_results_and_fails(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """MR metadata failure should write post results and stop before posting note."""
+    diff_bundle, prepared = _fixture_diff_and_prepared()
+
+    class _FailingGetMrGitLabClient(_FakeGitLabClient):
+        def get_mr(self):
+            raise ReviewerError(
+                "mr fetch failed",
+                error_code=ErrorCode.GITLAB_FETCH_PRIOR_FAILED,
+                context={"status": 404, "retry_count": 0},
+            )
+
+    _patch_pipeline_dependencies(
+        monkeypatch,
+        diff_bundle=diff_bundle,
+        prepared=prepared,
+        gitlab_client_cls=_FailingGetMrGitLabClient,
+    )
+
+    review = AgentReviewOutput(
+        summary_markdown="### Summary",
+        findings=[],
+    )
+
+    def _run_cursor_once(prompt: str, config) -> AgentAttempt:
+        _ = prompt, config
+        return _agent_attempt(
+            raw_stdout="{}",
+            raw_stderr="",
+            exit_code=0,
+            duration_ms=1,
+        )
+
+    def _parse_and_validate(raw: str) -> AgentReviewOutput:
+        _ = raw
+        return review
+
+    monkeypatch.setattr(run_module, "run_cursor_once", _run_cursor_once)
+    monkeypatch.setattr(run_module, "parse_and_validate", _parse_and_validate)
+    monkeypatch.setattr(run_module, "print_summary_markdown", lambda _: None)
+
+    workdir = tmp_path / ".diffsan"
+    result = run_module.run(RunOptions(ci=True, dry_run=False, workdir=str(workdir)))
+
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.error_code == ErrorCode.GITLAB_FETCH_PRIOR_FAILED
+    assert (workdir / "post_results.json").exists()
+
+    post_results = json.loads(
+        (workdir / "post_results.json").read_text(encoding="utf-8")
+    )
+    assert post_results["ok"] is False
+    assert post_results["items"][0]["kind"] == "summary_note"
+    assert post_results["items"][0]["ok"] is False
+    assert post_results["items"][0]["http_status"] == 404
+    assert (
+        post_results["items"][0]["error"]["error_code"]
+        == ErrorCode.GITLAB_FETCH_PRIOR_FAILED
+    )
+
+    events = _read_events(workdir)
+    summary_events = [
+        item for item in events if item.get("event") == "gitlab.post.summary"
+    ]
+    assert len(summary_events) == 1
+    assert cast("dict[str, object]", summary_events[0]["data"])["ok"] is False
+
+
 def test_run_milestone4_discussion_failure_is_partial_and_nonzero(
     tmp_path: Path,
     monkeypatch,
