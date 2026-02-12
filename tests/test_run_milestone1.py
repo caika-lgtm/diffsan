@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import pytest
 
@@ -20,6 +20,7 @@ from diffsan.contracts.models import (
     DiffBundle,
     DiffRef,
     DiffSource,
+    Finding,
     Fingerprint,
     PreparedDiff,
     RedactionReport,
@@ -68,6 +69,14 @@ def _agent_attempt(
         ended_at=ended_at,
         duration_ms=duration_ms,
     )
+
+
+def _read_events(workdir: Path) -> list[dict[str, object]]:
+    return [
+        json.loads(line)
+        for line in (workdir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
 
 
 def _patch_pipeline_dependencies(
@@ -122,6 +131,10 @@ class _FakeGitLabClient:
     def create_note(self, body: str):
         _ = body
         return SimpleNamespace(note_id=101, status_code=201, retry_count=0)
+
+    def create_discussion(self, *, body: str, position: dict[str, object]):
+        _ = body, position
+        return SimpleNamespace(discussion_id=202, status_code=201, retry_count=0)
 
 
 def test_run_milestone1_writes_pipeline_artifacts(
@@ -371,6 +384,217 @@ def test_run_milestone3_post_failure_writes_results_and_fails(
     assert (
         post_results["items"][0]["error"]["error_code"] == ErrorCode.GITLAB_POST_FAILED
     )
+
+
+def test_run_milestone4_discussion_failure_is_partial_and_nonzero(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Summary still posts when discussion fails; run exits non-zero."""
+    diff_bundle = DiffBundle(
+        source=DiffSource(
+            ref=DiffRef(
+                target_branch="main",
+                base_sha="a" * 40,
+                head_sha="b" * 40,
+            )
+        ),
+        raw_diff=("diff --git a/a.py b/a.py\n@@ -1 +1,2 @@\n line1\n+line2\n"),
+        files=[],
+    )
+    prepared = PreparedDiff(
+        prepared_diff=diff_bundle.raw_diff,
+        truncation=TruncationReport(),
+        redaction=RedactionReport(enabled=True, found=False),
+        ignored_paths=[],
+        included_paths=["a.py"],
+    )
+
+    class _PartiallyFailingGitLabClient(_FakeGitLabClient):
+        def get_mr(self):
+            return SimpleNamespace(
+                status_code=200,
+                payload={
+                    "iid": 1,
+                    "diff_refs": {
+                        "base_sha": "a" * 40,
+                        "head_sha": "b" * 40,
+                        "start_sha": "a" * 40,
+                    },
+                },
+                retry_count=0,
+            )
+
+        def create_discussion(self, *, body: str, position: dict[str, object]):
+            _ = body, position
+            raise ReviewerError(
+                "invalid position",
+                error_code=ErrorCode.GITLAB_POSITION_INVALID,
+                context={"status": 400, "retry_count": 0},
+            )
+
+    review = AgentReviewOutput(
+        summary_markdown="### Summary",
+        findings=[
+            Finding(
+                severity="high",
+                category="security",
+                path="a.py",
+                line_start=2,
+                line_end=2,
+                body_markdown="Issue on added line.",
+            )
+        ],
+    )
+
+    def _run_cursor_once(prompt: str, config) -> AgentAttempt:
+        _ = prompt, config
+        return _agent_attempt(
+            raw_stdout="{}",
+            raw_stderr="",
+            exit_code=0,
+            duration_ms=1,
+        )
+
+    def _parse_and_validate(raw: str) -> AgentReviewOutput:
+        _ = raw
+        return review
+
+    _patch_pipeline_dependencies(
+        monkeypatch,
+        diff_bundle=diff_bundle,
+        prepared=prepared,
+        gitlab_client_cls=_PartiallyFailingGitLabClient,
+    )
+    monkeypatch.setattr(run_module, "run_cursor_once", _run_cursor_once)
+    monkeypatch.setattr(run_module, "parse_and_validate", _parse_and_validate)
+    monkeypatch.setattr(run_module, "print_summary_markdown", lambda _: None)
+
+    workdir = tmp_path / ".diffsan"
+    result = run_module.run(RunOptions(ci=True, dry_run=False, workdir=str(workdir)))
+
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.error_code == ErrorCode.GITLAB_POST_FAILED
+
+    post_plan = json.loads((workdir / "post_plan.json").read_text(encoding="utf-8"))
+    assert len(post_plan["discussions"]) == 1
+    assert post_plan["discussions"][0]["position"]["new_line"] == 2
+
+    post_results = json.loads(
+        (workdir / "post_results.json").read_text(encoding="utf-8")
+    )
+    assert post_results["ok"] is False
+    assert post_results["items"][0]["kind"] == "summary_note"
+    assert post_results["items"][0]["ok"] is True
+    assert post_results["items"][1]["kind"] == "discussion"
+    assert post_results["items"][1]["ok"] is False
+    assert (
+        post_results["items"][1]["error"]["error_code"]
+        == ErrorCode.GITLAB_POSITION_INVALID
+    )
+
+
+def test_run_milestone4_discussion_success_emits_event_payload(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Discussion success should be recorded in post results and events."""
+    diff_bundle = DiffBundle(
+        source=DiffSource(
+            ref=DiffRef(
+                target_branch="main",
+                base_sha="a" * 40,
+                head_sha="b" * 40,
+            )
+        ),
+        raw_diff=("diff --git a/a.py b/a.py\n@@ -1 +1,2 @@\n line1\n+line2\n"),
+        files=[],
+    )
+    prepared = PreparedDiff(
+        prepared_diff=diff_bundle.raw_diff,
+        truncation=TruncationReport(),
+        redaction=RedactionReport(enabled=True, found=False),
+        ignored_paths=[],
+        included_paths=["a.py"],
+    )
+
+    class _DiscussionGitLabClient(_FakeGitLabClient):
+        def get_mr(self):
+            return SimpleNamespace(
+                status_code=200,
+                payload={
+                    "iid": 1,
+                    "diff_refs": {
+                        "base_sha": "a" * 40,
+                        "head_sha": "b" * 40,
+                        "start_sha": "a" * 40,
+                    },
+                },
+                retry_count=0,
+            )
+
+    review = AgentReviewOutput(
+        summary_markdown="### Summary",
+        findings=[
+            Finding(
+                severity="high",
+                category="security",
+                path="a.py",
+                line_start=2,
+                line_end=2,
+                body_markdown="Issue on added line.",
+            )
+        ],
+    )
+
+    def _run_cursor_once(prompt: str, config) -> AgentAttempt:
+        _ = prompt, config
+        return _agent_attempt(
+            raw_stdout="{}",
+            raw_stderr="",
+            exit_code=0,
+            duration_ms=1,
+        )
+
+    def _parse_and_validate(raw: str) -> AgentReviewOutput:
+        _ = raw
+        return review
+
+    _patch_pipeline_dependencies(
+        monkeypatch,
+        diff_bundle=diff_bundle,
+        prepared=prepared,
+        gitlab_client_cls=_DiscussionGitLabClient,
+    )
+    monkeypatch.setattr(run_module, "run_cursor_once", _run_cursor_once)
+    monkeypatch.setattr(run_module, "parse_and_validate", _parse_and_validate)
+    monkeypatch.setattr(run_module, "print_summary_markdown", lambda _: None)
+
+    workdir = tmp_path / ".diffsan"
+    result = run_module.run(RunOptions(ci=True, dry_run=False, workdir=str(workdir)))
+
+    assert result.ok is True
+    post_results = json.loads(
+        (workdir / "post_results.json").read_text(encoding="utf-8")
+    )
+    assert post_results["ok"] is True
+    assert post_results["items"][1]["kind"] == "discussion"
+    assert post_results["items"][1]["ok"] is True
+    assert post_results["items"][1]["gitlab_id"] == 202
+
+    events = _read_events(workdir)
+    discussion_events = [
+        item for item in events if item.get("event") == "gitlab.post.discussion"
+    ]
+    assert len(discussion_events) == 1
+    payload = cast("dict[str, object]", discussion_events[0]["data"])
+    assert payload["ok"] is True
+    assert payload["path"] == "a.py"
+    assert payload["line"] == 2
+    assert payload["http_status"] == 201
+    assert payload["id"] == 202
+    assert payload["retry"] == 0
 
 
 def test_run_milestone2_retries_passthrough_non_output_invalid_error(

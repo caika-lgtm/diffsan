@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Final
+from typing import Final, cast
 
 from diffsan import __version__
 from diffsan.contracts.errors import ErrorCode, ErrorInfo, ReviewerError
@@ -13,6 +13,7 @@ from diffsan.contracts.events import EventLevel, EventName
 from diffsan.contracts.models import (
     AppConfig,
     ArtifactPointers,
+    DiffRef,
     Finding,
     Fingerprint,
     ModeConfig,
@@ -192,7 +193,7 @@ def _run_pipeline(
     _artifacts: ArtifactStore,
     events: EventLogger,
 ) -> PipelineOutcome:
-    """Milestone-3 pipeline: review generation plus GitLab summary note posting."""
+    """Milestone-4 pipeline: review generation plus GitLab summary/discussions."""
     if options.dry_run:
         events.emit(
             EventName.SKIP_DECIDED,
@@ -286,6 +287,8 @@ def _run_pipeline(
             review=review,
             fingerprint=fingerprint,
             truncation=prepared.truncation,
+            prepared_diff=prepared.prepared_diff,
+            diff_ref=diff_bundle.source.ref,
             note_timezone=options.note_timezone,
         )
 
@@ -396,14 +399,50 @@ def _post_summary_note_to_gitlab(
     review: ReviewOutput,
     fingerprint: Fingerprint,
     truncation: TruncationReport,
+    prepared_diff: str,
+    diff_ref: DiffRef,
     note_timezone: str,
 ) -> None:
+    client = GitLabClient(config.gitlab)
+    try:
+        mr_result = client.get_mr()
+    except ReviewerError as exc:
+        retry_count = _extract_retry_count(exc)
+        http_status = _extract_http_status(exc)
+        post_results = PostResults(
+            ok=False,
+            items=[
+                PostResultItem(
+                    kind="summary_note",
+                    ok=False,
+                    http_status=http_status,
+                    retry_count=retry_count,
+                    error=exc.error_info,
+                )
+            ],
+        )
+        artifacts.write_json(POST_RESULTS_ARTIFACT_NAME, post_results)
+        events.emit(
+            EventName.GITLAB_POST_SUMMARY,
+            level=EventLevel.ERROR,
+            data={
+                "ok": False,
+                "http_status": http_status,
+                "retry": retry_count,
+            },
+        )
+        raise
+
+    mr_diff_refs = _extract_mr_diff_refs(mr_result.payload)
     post_plan = build_post_plan(
         review=review,
         config=config,
         fallback_fingerprint=fingerprint,
         note_timezone=note_timezone,
         pipeline_id=os.getenv("CI_PIPELINE_ID"),
+        prepared_diff=prepared_diff,
+        diff_ref=diff_ref,
+        mr_diff_refs=mr_diff_refs,
     )
     artifacts.write_json(POST_PLAN_ARTIFACT_NAME, post_plan)
     events.emit(
@@ -422,9 +461,8 @@ def _post_summary_note_to_gitlab(
         include_secret_warning=config.secrets.post_warning_to_mr,
     )
 
-    client = GitLabClient(config.gitlab)
+    post_items: list[PostResultItem] = []
     try:
-        client.get_mr()
         note_result = client.create_note(note_body)
     except ReviewerError as exc:
         retry_count = _extract_retry_count(exc)
@@ -453,19 +491,15 @@ def _post_summary_note_to_gitlab(
         )
         raise
 
-    post_results = PostResults(
-        ok=True,
-        items=[
-            PostResultItem(
-                kind="summary_note",
-                ok=True,
-                http_status=note_result.status_code,
-                gitlab_id=note_result.note_id,
-                retry_count=note_result.retry_count,
-            )
-        ],
+    post_items.append(
+        PostResultItem(
+            kind="summary_note",
+            ok=True,
+            http_status=note_result.status_code,
+            gitlab_id=note_result.note_id,
+            retry_count=note_result.retry_count,
+        )
     )
-    artifacts.write_json(POST_RESULTS_ARTIFACT_NAME, post_results)
     events.emit(
         EventName.GITLAB_POST_SUMMARY,
         data={
@@ -476,6 +510,75 @@ def _post_summary_note_to_gitlab(
         },
     )
 
+    failed_discussions = 0
+    for discussion in post_plan.discussions:
+        if discussion.position is None:  # pragma: no cover - contract guard
+            continue
+        try:
+            result = client.create_discussion(
+                body=discussion.body_markdown,
+                position=discussion.position.model_dump(mode="json"),
+            )
+        except ReviewerError as exc:
+            failed_discussions += 1
+            retry_count = _extract_retry_count(exc)
+            http_status = _extract_http_status(exc)
+            post_items.append(
+                PostResultItem(
+                    kind="discussion",
+                    ok=False,
+                    http_status=http_status,
+                    retry_count=retry_count,
+                    error=exc.error_info,
+                )
+            )
+            events.emit(
+                EventName.GITLAB_POST_DISCUSSION,
+                level=EventLevel.ERROR,
+                data={
+                    "ok": False,
+                    "path": discussion.path,
+                    "line": discussion.position.new_line,
+                    "http_status": http_status,
+                    "retry": retry_count,
+                    "error_code": exc.error_info.error_code,
+                },
+            )
+            continue
+
+        post_items.append(
+            PostResultItem(
+                kind="discussion",
+                ok=True,
+                http_status=result.status_code,
+                gitlab_id=result.discussion_id,
+                retry_count=result.retry_count,
+            )
+        )
+        events.emit(
+            EventName.GITLAB_POST_DISCUSSION,
+            data={
+                "ok": True,
+                "path": discussion.path,
+                "line": discussion.position.new_line,
+                "http_status": result.status_code,
+                "id": result.discussion_id,
+                "retry": result.retry_count,
+            },
+        )
+
+    post_results = PostResults(ok=failed_discussions == 0, items=post_items)
+    artifacts.write_json(POST_RESULTS_ARTIFACT_NAME, post_results)
+    if failed_discussions > 0:
+        raise ReviewerError(
+            "GitLab discussion posting partially failed",
+            error_code=ErrorCode.GITLAB_POST_FAILED,
+            context={
+                "failed_discussions": failed_discussions,
+                "total_discussions": len(post_plan.discussions),
+            },
+        )
+
 
 def _extract_http_status(error: ReviewerError) -> int | None:
     status = error.error_info.context.get("status")
@@ -485,3 +588,8 @@ def _extract_http_status(error: ReviewerError) -> int | None:
 def _extract_retry_count(error: ReviewerError) -> int:
     retry_count = error.error_info.context.get("retry_count")
     return retry_count if isinstance(retry_count, int) else 0
+
+
+def _extract_mr_diff_refs(payload: dict[str, object]) -> dict[str, object] | None:
+    diff_refs = payload.get("diff_refs")
+    return cast("dict[str, object]", diff_refs) if isinstance(diff_refs, dict) else None
