@@ -18,6 +18,7 @@ Minimum artifacts (MVP v0):
 - `prior_digest.json` — extracted digest from prior bot note (if any)
 - `prompt.txt` — prompt passed to agent
 - `agent.raw.txt` — raw agent stdout (may be invalid JSON)
+- `agent.raw.attemptN.txt` — per-attempt raw agent stdout for retry debugging
 - `review.json` — validated `ReviewOutput` JSON
 - `post_plan.json` — what we intended to post (summary + discussions)
 - `post_results.json` — posting outcomes (IDs/errors)
