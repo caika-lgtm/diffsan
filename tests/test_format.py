@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import diffsan.core.format as format_module
 from diffsan.contracts.models import (
     AppConfig,
     DiffRef,
@@ -227,6 +228,98 @@ def test_build_post_plan_supports_utc_offset_timezone() -> None:
     )
 
     assert "UTC+08:00" in plan.summary_meta_collapsible
+
+
+def test_build_post_plan_supports_negative_utc_offset_timezone() -> None:
+    """Negative UTC offsets should preserve the sign in rendered labels."""
+    review = ReviewOutput(
+        summary_markdown="summary",
+        findings=[],
+        meta=ReviewMeta(
+            agent="cursor",
+            timings=TimingMeta(
+                started_at=datetime(2026, 2, 12, 12, 0, 0, tzinfo=UTC),
+                ended_at=datetime(2026, 2, 12, 12, 0, 2, tzinfo=UTC),
+                duration_ms=2000,
+            ),
+        ),
+    )
+
+    plan = build_post_plan(
+        review=review,
+        config=AppConfig(),
+        fallback_fingerprint=None,
+        note_timezone="-05:30",
+    )
+
+    assert "UTC-05:30" in plan.summary_meta_collapsible
+
+
+def test_build_post_plan_invalid_utc_offset_falls_back() -> None:
+    """Invalid offset values should use the fallback timezone behavior."""
+    review = ReviewOutput(
+        summary_markdown="summary",
+        findings=[],
+        meta=ReviewMeta(
+            agent="cursor",
+            timings=TimingMeta(
+                started_at=datetime(2026, 2, 12, 12, 0, 0, tzinfo=UTC),
+                ended_at=datetime(2026, 2, 12, 12, 0, 2, tzinfo=UTC),
+                duration_ms=2000,
+            ),
+        ),
+    )
+
+    plan = build_post_plan(
+        review=review,
+        config=AppConfig(),
+        fallback_fingerprint=None,
+        note_timezone="+25:00",
+    )
+
+    assert "SGT" in plan.summary_meta_collapsible
+
+
+def test_build_post_plan_local_timezone_falls_back_when_unavailable(
+    monkeypatch,
+) -> None:
+    """LOCAL token should fall back to SGT when runtime local tz is unavailable."""
+
+    class _NoLocalDateTime:
+        @staticmethod
+        def now():
+            class _NoLocalNow:
+                @staticmethod
+                def astimezone():
+                    class _NoLocalZone:
+                        tzinfo = None
+
+                    return _NoLocalZone()
+
+            return _NoLocalNow()
+
+    review = ReviewOutput(
+        summary_markdown="summary",
+        findings=[],
+        meta=ReviewMeta(
+            agent="cursor",
+            timings=TimingMeta(
+                started_at=datetime(2026, 2, 12, 12, 0, 0, tzinfo=UTC),
+                ended_at=datetime(2026, 2, 12, 12, 0, 2, tzinfo=UTC),
+                duration_ms=2000,
+            ),
+        ),
+    )
+    monkeypatch.setattr(format_module, "datetime", _NoLocalDateTime)
+
+    plan = build_post_plan(
+        review=review,
+        config=AppConfig(),
+        fallback_fingerprint=None,
+        note_timezone="LOCAL",
+    )
+
+    assert "SGT" in plan.summary_meta_collapsible
 
 
 def test_build_summary_note_body_truncation_without_items() -> None:
