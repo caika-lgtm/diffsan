@@ -1004,3 +1004,89 @@ def test_run_milestone5_prior_digest_is_injected_into_prompt_request(
     )
     assert prior_digest_payload["prior_fingerprint"]["value"] == "1" * 64
     assert prior_digest_payload["findings"][0]["finding_id"] == "f-old"
+
+
+def test_run_milestone5_prior_digest_fetch_failure_is_non_fatal(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Prior digest fetch errors should not fail the whole run."""
+    diff_bundle, prepared = _fixture_diff_and_prepared()
+    review = AgentReviewOutput(summary_markdown="### Summary", findings=[])
+
+    def _run_cursor_once(prompt: str, config) -> AgentAttempt:
+        _ = prompt, config
+        return _agent_attempt(
+            raw_stdout="{}",
+            raw_stderr="",
+            exit_code=0,
+            duration_ms=1,
+        )
+
+    def _parse_and_validate(raw: str) -> AgentReviewOutput:
+        _ = raw
+        return review
+
+    def _raise_prior_digest(*_args, **_kwargs):
+        raise ReviewerError(
+            "list notes failed",
+            error_code=ErrorCode.GITLAB_FETCH_PRIOR_FAILED,
+        )
+
+    _patch_pipeline_dependencies(
+        monkeypatch,
+        diff_bundle=diff_bundle,
+        prepared=prepared,
+    )
+    monkeypatch.setattr(run_module, "run_cursor_once", _run_cursor_once)
+    monkeypatch.setattr(run_module, "parse_and_validate", _parse_and_validate)
+    monkeypatch.setattr(run_module, "print_summary_markdown", lambda _: None)
+    monkeypatch.setattr(run_module, "get_prior_digest", _raise_prior_digest)
+
+    workdir = tmp_path / ".diffsan"
+    result = run_module.run(RunOptions(ci=True, dry_run=False, workdir=str(workdir)))
+
+    assert result.ok is True
+    assert json.loads((workdir / "prior_digest.json").read_text(encoding="utf-8")) == {}
+
+
+def test_run_milestone5_handles_non_dict_merge_request_payload(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Non-dict MR payloads should fall back to empty payload for post planning."""
+    diff_bundle, prepared = _fixture_diff_and_prepared()
+    review = AgentReviewOutput(summary_markdown="### Summary", findings=[])
+
+    class _ListPayloadGitLabClient(_FakeGitLabClient):
+        def get_mr(self):
+            return SimpleNamespace(status_code=200, payload=[{"iid": 1}], retry_count=0)
+
+    def _run_cursor_once(prompt: str, config) -> AgentAttempt:
+        _ = prompt, config
+        return _agent_attempt(
+            raw_stdout="{}",
+            raw_stderr="",
+            exit_code=0,
+            duration_ms=1,
+        )
+
+    def _parse_and_validate(raw: str) -> AgentReviewOutput:
+        _ = raw
+        return review
+
+    _patch_pipeline_dependencies(
+        monkeypatch,
+        diff_bundle=diff_bundle,
+        prepared=prepared,
+        gitlab_client_cls=_ListPayloadGitLabClient,
+    )
+    monkeypatch.setattr(run_module, "run_cursor_once", _run_cursor_once)
+    monkeypatch.setattr(run_module, "parse_and_validate", _parse_and_validate)
+    monkeypatch.setattr(run_module, "print_summary_markdown", lambda _: None)
+
+    workdir = tmp_path / ".diffsan"
+    result = run_module.run(RunOptions(ci=True, dry_run=False, workdir=str(workdir)))
+
+    assert result.ok is True
+    assert (workdir / "post_plan.json").exists()

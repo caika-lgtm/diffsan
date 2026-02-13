@@ -169,3 +169,81 @@ def test_run_workdir_creation_failure_falls_back_to_default(
     assert result.error is not None
     assert result.error.error_code == ErrorCode.CONFIG_PARSE_ERROR
     assert (fallback_dir / run_module.RUN_ARTIFACT_NAME).exists()
+
+
+def test_run_config_parse_error_writes_bootstrap_failure(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Config parse errors in bootstrap path are normalized to run artifacts."""
+    import diffsan.run as run_module
+
+    workdir = tmp_path / ".diffsan-bootstrap"
+
+    def _raise_config_error(**_kwargs):
+        raise ReviewerError(
+            "bad config",
+            error_code=ErrorCode.CONFIG_PARSE_ERROR,
+        )
+
+    monkeypatch.setattr(run_module, "load_config", _raise_config_error)
+
+    result = run_module.run(run_module.RunOptions(workdir=str(workdir)))
+
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.error_code == ErrorCode.CONFIG_PARSE_ERROR
+    assert (workdir / run_module.RUN_ARTIFACT_NAME).exists()
+
+
+def test_run_re_raises_non_config_load_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Non-config errors from load_config should not be swallowed."""
+    import diffsan.run as run_module
+
+    def _raise_non_config_error(**_kwargs):
+        raise ReviewerError(
+            "upstream failure",
+            error_code=ErrorCode.DIFF_FETCH_FAILED,
+        )
+
+    monkeypatch.setattr(run_module, "load_config", _raise_non_config_error)
+
+    with pytest.raises(ReviewerError) as exc_info:
+        run_module.run(run_module.RunOptions())
+
+    assert exc_info.value.error_info.error_code == ErrorCode.DIFF_FETCH_FAILED
+
+
+def test_write_bootstrap_failure_falls_back_when_preferred_workdir_unavailable(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bootstrap failure helper retries with DEFAULT_WORKDIR when needed."""
+    import diffsan.run as run_module
+
+    original_artifact_store = run_module.ArtifactStore
+    fallback_dir = tmp_path / "final-fallback"
+    call_count = 0
+
+    def _artifact_store(workdir: str):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise OSError("cannot create preferred fallback")
+        return original_artifact_store(workdir)
+
+    monkeypatch.setattr(run_module, "DEFAULT_WORKDIR", str(fallback_dir))
+    monkeypatch.setattr(run_module, "ArtifactStore", _artifact_store)
+
+    result = run_module._write_bootstrap_failure(
+        error=run_module.ErrorInfo(
+            error_code=ErrorCode.CONFIG_PARSE_ERROR,
+            message="synthetic",
+        ),
+        preferred_workdir=str(tmp_path / "unavailable"),
+    )
+
+    assert result.ok is False
+    assert (fallback_dir / run_module.RUN_ARTIFACT_NAME).exists()
