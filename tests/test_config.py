@@ -8,6 +8,7 @@ import pytest
 
 from diffsan.contracts.errors import ErrorCode, ReviewerError
 from diffsan.contracts.models import AppConfig
+from diffsan.core import config as config_module
 from diffsan.core.config import DEFAULT_CONFIG_FILE, load_config
 
 
@@ -147,3 +148,154 @@ def test_load_config_errors_for_missing_explicit_file(
         load_config(config_file=str(tmp_path / "missing.toml"))
 
     assert exc_info.value.error_info.error_code == ErrorCode.CONFIG_PARSE_ERROR
+
+
+def test_load_config_errors_for_directory_explicit_file(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    config_dir = tmp_path / "config-dir"
+    config_dir.mkdir()
+
+    with pytest.raises(ReviewerError) as exc_info:
+        load_config(config_file=str(config_dir))
+
+    assert exc_info.value.error_info.error_code == ErrorCode.CONFIG_PARSE_ERROR
+
+
+def test_load_config_supports_env_selected_config_file(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    config_file = tmp_path / "env-selected.toml"
+    config_file.write_text('note_timezone = "UTC"\n', encoding="utf-8")
+    monkeypatch.setenv("DIFFSAN_CONFIG_FILE", str(config_file))
+
+    loaded = load_config()
+
+    assert loaded.config_file == str(config_file)
+    assert loaded.config.note_timezone == "UTC"
+
+
+def test_load_config_errors_for_missing_env_selected_file(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DIFFSAN_CONFIG_FILE", str(tmp_path / "missing.toml"))
+
+    with pytest.raises(ReviewerError) as exc_info:
+        load_config()
+
+    assert exc_info.value.error_info.error_code == ErrorCode.CONFIG_PARSE_ERROR
+
+
+def test_load_config_errors_for_directory_env_selected_file(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    config_dir = tmp_path / "env-config-dir"
+    config_dir.mkdir()
+    monkeypatch.setenv("DIFFSAN_CONFIG_FILE", str(config_dir))
+
+    with pytest.raises(ReviewerError) as exc_info:
+        load_config()
+
+    assert exc_info.value.error_info.error_code == ErrorCode.CONFIG_PARSE_ERROR
+
+
+def test_load_config_errors_for_directory_default_config_path(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / DEFAULT_CONFIG_FILE).mkdir()
+
+    with pytest.raises(ReviewerError) as exc_info:
+        load_config()
+
+    assert exc_info.value.error_info.error_code == ErrorCode.CONFIG_PARSE_ERROR
+
+
+def test_load_config_errors_for_invalid_toml(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    config_file = tmp_path / "invalid.toml"
+    config_file.write_text("not = [valid", encoding="utf-8")
+
+    with pytest.raises(ReviewerError) as exc_info:
+        load_config(config_file=str(config_file))
+
+    assert exc_info.value.error_info.error_code == ErrorCode.CONFIG_PARSE_ERROR
+
+
+def test_load_config_errors_when_file_open_fails(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    config_file = tmp_path / "open-fail.toml"
+    config_file.write_text('note_timezone = "UTC"\n', encoding="utf-8")
+
+    def _raise_oserror(*_args, **_kwargs):
+        raise OSError("boom")
+
+    monkeypatch.setattr(config_module.Path, "open", _raise_oserror)
+
+    with pytest.raises(ReviewerError) as exc_info:
+        load_config(config_file=str(config_file))
+
+    assert exc_info.value.error_info.error_code == ErrorCode.CONFIG_PARSE_ERROR
+
+
+def test_load_config_errors_when_loaded_payload_is_not_dict(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    config_file = tmp_path / "not-dict.toml"
+    config_file.write_text('note_timezone = "UTC"\n', encoding="utf-8")
+    monkeypatch.setattr(config_module.tomllib, "load", lambda _handle: ["bad"])
+
+    with pytest.raises(ReviewerError) as exc_info:
+        load_config(config_file=str(config_file))
+
+    assert exc_info.value.error_info.error_code == ErrorCode.CONFIG_PARSE_ERROR
+
+
+def test_load_config_errors_when_validation_fails(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    config_file = tmp_path / "invalid-types.toml"
+    config_file.write_text(
+        "\n".join(
+            [
+                "[limits]",
+                'max_files = "many"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ReviewerError) as exc_info:
+        load_config(config_file=str(config_file))
+
+    assert exc_info.value.error_info.error_code == ErrorCode.CONFIG_PARSE_ERROR
+
+
+def test_load_config_cli_note_timezone_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.setenv("DIFFSAN_NOTE_TIMEZONE", "Asia/Singapore")
+
+    loaded = load_config(note_timezone="UTC")
+
+    assert loaded.config.note_timezone == "UTC"
