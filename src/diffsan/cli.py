@@ -6,9 +6,7 @@ from typing import Annotated
 import typer
 
 from diffsan import __version__
-from diffsan.run import DEFAULT_WORKDIR, RunOptions, run
-
-DEFAULT_WORKDIR_PATH = Path(DEFAULT_WORKDIR)
+from diffsan.run import RunOptions, run
 
 app = typer.Typer(
     name="diffsan",
@@ -35,35 +33,26 @@ def main(
         callback=version_callback,
         is_eager=True,
     ),
-    ci: bool = typer.Option(
-        False,
+    ci: bool | None = typer.Option(
+        None,
         "--ci/--no-ci",
-        help="Run in CI mode.",
+        help="Override CI mode.",
     ),
     dry_run: bool = typer.Option(
         False,
         "--dry-run",
         help="Run no-op harness and write run artifacts.",
     ),
-    workdir: Annotated[
-        Path,
+    config_file: Annotated[
+        Path | None,
         typer.Option(
-            "--workdir",
-            envvar="DIFFSAN_WORKDIR",
-            help="Directory for run artifacts.",
-        ),
-    ] = DEFAULT_WORKDIR_PATH,
-    note_timezone: Annotated[
-        str,
-        typer.Option(
-            "--note-timezone",
-            envvar="DIFFSAN_NOTE_TIMEZONE",
+            "--config",
             help=(
-                "Timezone used in MR summary note metadata "
-                "(e.g. SGT, UTC, Asia/Singapore)."
+                "Path to TOML config file. If omitted, diffsan uses "
+                ".diffsan.toml when present."
             ),
         ),
-    ] = "SGT",
+    ] = None,
 ) -> None:
     """Run diffsan."""
     if ctx.invoked_subcommand is not None:
@@ -73,8 +62,7 @@ def main(
         RunOptions(
             ci=ci,
             dry_run=dry_run,
-            workdir=str(workdir),
-            note_timezone=note_timezone,
+            config_file=str(config_file) if config_file is not None else None,
         )
     )
     raise typer.Exit(code=0 if result.ok else 1)

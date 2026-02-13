@@ -19,7 +19,7 @@ Artifacts are critical for debugging CI runs and for auditing prompt/output hand
 - Default workdir is a directory in the repo workspace, e.g.:
   - `.diffsan/` (recommended branding)
 - Allow override via:
-  - CLI flag: `--workdir <path>`
+  - repo config file key: `workdir`
   - Env var: `DIFFSAN_WORKDIR`
 
 The workdir must be created early (before network/subprocess work).

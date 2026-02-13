@@ -16,7 +16,6 @@ from diffsan.contracts.models import (
     DiffRef,
     Finding,
     Fingerprint,
-    ModeConfig,
     PostResultItem,
     PostResults,
     ReviewMeta,
@@ -27,6 +26,7 @@ from diffsan.contracts.models import (
     TruncationReport,
 )
 from diffsan.core.agent_cursor import AgentAttempt, run_cursor_once
+from diffsan.core.config import load_config
 from diffsan.core.diff_provider import get_diff
 from diffsan.core.fingerprint import compute_fingerprint
 from diffsan.core.format import (
@@ -68,12 +68,13 @@ POST_RESULTS_ARTIFACT_NAME: Final[str] = "post_results.json"
 
 @dataclass(frozen=True, slots=True)
 class RunOptions:
-    """CLI-provided run options."""
+    """Runtime overrides provided by the CLI entrypoint."""
 
-    ci: bool = False
+    ci: bool | None = None
     dry_run: bool = False
-    workdir: str = DEFAULT_WORKDIR
-    note_timezone: str = "SGT"
+    workdir: str | None = None
+    note_timezone: str | None = None
+    config_file: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,35 +98,35 @@ class ValidatedAgentOutput:
 def run(options: RunOptions) -> RunResult:
     """Execute one diffsan run and always write `run.json`."""
     try:
-        artifacts = ArtifactStore(options.workdir)
+        loaded_config = load_config(
+            ci=options.ci,
+            workdir=options.workdir,
+            note_timezone=options.note_timezone,
+            config_file=options.config_file,
+        )
+    except ReviewerError as exc:
+        if exc.error_info.error_code != ErrorCode.CONFIG_PARSE_ERROR:
+            raise
+        return _write_bootstrap_failure(
+            error=exc.error_info,
+            preferred_workdir=options.workdir,
+        )
+
+    config = loaded_config.config
+    try:
+        artifacts = ArtifactStore(config.workdir)
     except OSError as exc:
-        fallback = ArtifactStore(DEFAULT_WORKDIR)
-        fallback_events = EventLogger(fallback.path(EVENTS_ARTIFACT_NAME), echo=True)
-        failure = RunResult(
-            ok=False,
-            skipped=False,
+        return _write_bootstrap_failure(
             error=ErrorInfo(
                 error_code=ErrorCode.CONFIG_PARSE_ERROR,
-                message=f"Failed to create workdir: {options.workdir}",
+                message=f"Failed to create workdir: {config.workdir}",
                 retryable=False,
                 cause=f"{exc.__class__.__name__}: {exc}",
             ),
-            artifacts=ArtifactPointers(workdir=str(fallback.workdir)),
+            preferred_workdir=DEFAULT_WORKDIR,
         )
-        fallback_events.emit(
-            EventName.ERROR_RAISED,
-            level=EventLevel.ERROR,
-            data=failure.error.model_dump(mode="json") if failure.error else {},
-        )
-        fallback_events.emit(
-            EventName.RUN_FINISHED,
-            data={"ok": False, "skipped": False, "duration_ms": 0},
-        )
-        fallback.write_json(RUN_ARTIFACT_NAME, failure)
-        return failure
 
     events = EventLogger(artifacts.path(EVENTS_ARTIFACT_NAME), echo=True)
-    config = AppConfig(mode=ModeConfig(ci=options.ci))
 
     run_result = RunResult(
         ok=False,
@@ -138,7 +139,7 @@ def run(options: RunOptions) -> RunResult:
         EventName.RUN_STARTED,
         data={
             "version": __version__,
-            "ci": options.ci,
+            "ci": config.mode.ci,
             "workdir": str(artifacts.workdir),
         },
     )
@@ -148,6 +149,7 @@ def run(options: RunOptions) -> RunResult:
             "ci": config.mode.ci,
             "agent": config.agent.agent,
             "verbosity": config.agent.verbosity,
+            "config_file": loaded_config.config_file,
         },
     )
 
@@ -343,7 +345,7 @@ def _run_pipeline(
             truncation=prepared.truncation,
             prepared_diff=prepared.prepared_diff,
             diff_ref=diff_bundle.source.ref,
-            note_timezone=options.note_timezone,
+            note_timezone=_config.note_timezone,
         )
 
     return PipelineOutcome(skipped=False, fingerprint=fingerprint, skip_reasons=())
@@ -689,3 +691,33 @@ def _format_discussion_error_for_note(
         f"[{error.error_info.error_code}] "
         f"{error.error_info.message}{status_text}"
     )
+
+
+def _write_bootstrap_failure(
+    *,
+    error: ErrorInfo,
+    preferred_workdir: str | None,
+) -> RunResult:
+    try:
+        fallback = ArtifactStore(preferred_workdir or DEFAULT_WORKDIR)
+    except OSError:
+        fallback = ArtifactStore(DEFAULT_WORKDIR)
+
+    fallback_events = EventLogger(fallback.path(EVENTS_ARTIFACT_NAME), echo=True)
+    failure = RunResult(
+        ok=False,
+        skipped=False,
+        error=error,
+        artifacts=ArtifactPointers(workdir=str(fallback.workdir)),
+    )
+    fallback_events.emit(
+        EventName.ERROR_RAISED,
+        level=EventLevel.ERROR,
+        data=failure.error.model_dump(mode="json") if failure.error else {},
+    )
+    fallback_events.emit(
+        EventName.RUN_FINISHED,
+        data={"ok": False, "skipped": False, "duration_ms": 0},
+    )
+    fallback.write_json(RUN_ARTIFACT_NAME, failure)
+    return failure

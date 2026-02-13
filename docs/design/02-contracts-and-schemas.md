@@ -33,7 +33,9 @@ Fields are grouped for clarity. Exact defaults are implementation-defined but sh
 
 ```json
 {
-  "mode": { "ci": true },
+  "workdir": ".diffsan",
+  "note_timezone": "system-local",
+  "mode": { "ci": false },
   "limits": {
     "max_diff_chars": 200000,
     "max_files": 60,

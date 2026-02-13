@@ -1,0 +1,149 @@
+"""Tests for config loading and precedence."""
+
+from __future__ import annotations
+
+import os
+
+import pytest
+
+from diffsan.contracts.errors import ErrorCode, ReviewerError
+from diffsan.contracts.models import AppConfig
+from diffsan.core.config import DEFAULT_CONFIG_FILE, load_config
+
+
+def _clear_diffsan_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    for key in list(os.environ):
+        if key.startswith("DIFFSAN_"):
+            monkeypatch.delenv(key, raising=False)
+
+
+def test_load_config_uses_defaults_without_file(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+
+    loaded = load_config()
+
+    assert loaded.config_file is None
+    assert loaded.config.workdir == ".diffsan"
+    assert loaded.config.note_timezone == AppConfig().note_timezone
+    assert loaded.config.note_timezone
+    assert loaded.config.mode.ci is False
+
+
+def test_load_config_reads_default_file(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / DEFAULT_CONFIG_FILE).write_text(
+        "\n".join(
+            [
+                'workdir = ".ai-review"',
+                'note_timezone = "UTC"',
+                "[limits]",
+                "max_files = 7",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = load_config()
+
+    assert loaded.config_file is not None
+    assert loaded.config.workdir == ".ai-review"
+    assert loaded.config.note_timezone == "UTC"
+    assert loaded.config.limits.max_files == 7
+
+
+def test_load_config_env_overrides_file(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / DEFAULT_CONFIG_FILE).write_text(
+        "\n".join(
+            [
+                'note_timezone = "SGT"',
+                "[limits]",
+                "max_files = 7",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DIFFSAN_NOTE_TIMEZONE", "UTC")
+    monkeypatch.setenv("DIFFSAN_LIMITS__MAX_FILES", "11")
+
+    loaded = load_config()
+
+    assert loaded.config.note_timezone == "UTC"
+    assert loaded.config.limits.max_files == 11
+
+
+def test_load_config_env_can_override_to_default_value(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / DEFAULT_CONFIG_FILE).write_text(
+        "\n".join(
+            [
+                "[mode]",
+                "ci = true",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DIFFSAN_MODE__CI", "false")
+
+    loaded = load_config()
+
+    assert loaded.config.mode.ci is False
+
+
+def test_load_config_cli_overrides_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.setenv("DIFFSAN_MODE__CI", "true")
+    monkeypatch.setenv("DIFFSAN_WORKDIR", ".from-env")
+
+    loaded = load_config(ci=False, workdir=".from-cli")
+
+    assert loaded.config.mode.ci is False
+    assert loaded.config.workdir == ".from-cli"
+
+
+def test_load_config_supports_explicit_config_file(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    custom_config = tmp_path / "custom.toml"
+    custom_config.write_text(
+        "\n".join(
+            [
+                'note_timezone = "Asia/Singapore"',
+                "[mode]",
+                "ci = true",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = load_config(config_file=str(custom_config))
+
+    assert loaded.config_file == str(custom_config)
+    assert loaded.config.mode.ci is True
+    assert loaded.config.note_timezone == "Asia/Singapore"
+
+
+def test_load_config_errors_for_missing_explicit_file(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(ReviewerError) as exc_info:
+        load_config(config_file=str(tmp_path / "missing.toml"))
+
+    assert exc_info.value.error_info.error_code == ErrorCode.CONFIG_PARSE_ERROR
