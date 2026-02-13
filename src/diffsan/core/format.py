@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import TYPE_CHECKING
+from datetime import datetime, timedelta, timezone, tzinfo
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from diffsan.contracts.models import (
@@ -19,13 +19,11 @@ from diffsan.contracts.models import (
     TruncationReport,
 )
 
-if TYPE_CHECKING:
-    from datetime import datetime
-
 _DEFAULT_NOTE_TIMEZONE = "Asia/Singapore"
 _TIMEZONE_ALIASES = {
     "SGT": "Asia/Singapore",
 }
+_UTC_OFFSET_PATTERN = re.compile(r"^([+-])(\d{2})(?::?(\d{2}))?$")
 _DIFF_HEADER_RE = re.compile(r"^diff --git a/(.+?) b/(.+)$")
 _HUNK_HEADER_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 
@@ -378,7 +376,7 @@ def _format_datetime_human(value: datetime, timezone_name: str) -> str:
     timezone, label_override = _resolve_timezone(timezone_name)
     local = value.astimezone(timezone)
     hour = local.strftime("%I").lstrip("0") or "0"
-    label = label_override or local.strftime("%Z") or timezone.key
+    label = label_override or local.strftime("%Z") or str(timezone)
     return f"{local.strftime('%d %b %Y')}, {hour}:{local.strftime('%M%p')} {label}"
 
 
@@ -392,10 +390,28 @@ def _format_duration(duration_ms: int) -> str:
     return f"{minutes}m {seconds}s"
 
 
-def _resolve_timezone(timezone_name: str) -> tuple[ZoneInfo, str | None]:
+def _resolve_timezone(timezone_name: str) -> tuple[tzinfo, str | None]:
     normalized = timezone_name.strip()
     if not normalized:
         normalized = "SGT"
+
+    if normalized.upper() == "LOCAL":
+        local_zone = datetime.now().astimezone().tzinfo
+        if local_zone is not None:
+            return local_zone, None
+        return ZoneInfo(_DEFAULT_NOTE_TIMEZONE), "SGT"
+
+    offset_match = _UTC_OFFSET_PATTERN.match(normalized)
+    if offset_match is not None:
+        sign, hours_raw, minutes_raw = offset_match.groups()
+        hours = int(hours_raw)
+        minutes = int(minutes_raw or "0")
+        if hours <= 23 and minutes <= 59:
+            offset = timedelta(hours=hours, minutes=minutes)
+            if sign == "-":
+                offset = -offset
+            return timezone(offset), f"UTC{sign}{hours:02d}:{minutes:02d}"
+
     upper = normalized.upper()
     zone_name = _TIMEZONE_ALIASES.get(upper, normalized)
     label_override = upper if upper in _TIMEZONE_ALIASES else None

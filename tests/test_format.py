@@ -178,6 +178,57 @@ def test_build_post_plan_formats_minutes_and_handles_timezone_fallbacks() -> Non
     assert "SGT" in plan_empty_tz.summary_meta_collapsible
 
 
+def test_build_post_plan_supports_local_timezone_token() -> None:
+    """LOCAL timezone token should resolve to the host timezone."""
+    review = ReviewOutput(
+        summary_markdown="summary",
+        findings=[],
+        meta=ReviewMeta(
+            agent="cursor",
+            timings=TimingMeta(
+                started_at=datetime(2026, 2, 12, 12, 0, 0, tzinfo=UTC),
+                ended_at=datetime(2026, 2, 12, 12, 0, 2, tzinfo=UTC),
+                duration_ms=2000,
+            ),
+        ),
+    )
+
+    plan = build_post_plan(
+        review=review,
+        config=AppConfig(),
+        fallback_fingerprint=None,
+        note_timezone="LOCAL",
+    )
+
+    assert "**Started:** `" in plan.summary_meta_collapsible
+    assert "**Ended:** `" in plan.summary_meta_collapsible
+
+
+def test_build_post_plan_supports_utc_offset_timezone() -> None:
+    """UTC offset timezone values should render with UTC±HH:MM labels."""
+    review = ReviewOutput(
+        summary_markdown="summary",
+        findings=[],
+        meta=ReviewMeta(
+            agent="cursor",
+            timings=TimingMeta(
+                started_at=datetime(2026, 2, 12, 12, 0, 0, tzinfo=UTC),
+                ended_at=datetime(2026, 2, 12, 12, 0, 2, tzinfo=UTC),
+                duration_ms=2000,
+            ),
+        ),
+    )
+
+    plan = build_post_plan(
+        review=review,
+        config=AppConfig(),
+        fallback_fingerprint=None,
+        note_timezone="+08:00",
+    )
+
+    assert "UTC+08:00" in plan.summary_meta_collapsible
+
+
 def test_build_summary_note_body_truncation_without_items() -> None:
     """Truncation section should render even when item list is empty."""
     body = build_summary_note_body(

@@ -18,6 +18,10 @@ If anything conflicts, prefer (in order):
   - the relevant `docs/design/*.md` doc(s), and
   - any example JSON in `docs/specs/schema/` (if present), and
   - the Pydantic models in `src/diffsan/contracts/models.py` (if present).
+- If you add a config variable or change a config default, you must update:
+  - `docs/configuration.md`, and
+  - the relevant `docs/design/*.md` doc(s), and
+  - `src/diffsan/contracts/models.py` defaults (if applicable).
 
 ## Key product intent (short)
 

@@ -140,7 +140,7 @@ Post a single MR note containing:
 - a collapsible `<details>` metadata section (fingerprint, agent info, timings, token usage if available, flags)
 - include total findings count and MR pipeline id (when available from CI)
 - human-readable timestamps and duration in metadata
-  - timezone is configurable via CLI (`--note-timezone`), default `SGT`
+  - timezone is configurable via config key `note_timezone` (or env `DIFFSAN_NOTE_TIMEZONE`), default is the runner's local timezone
 - a collapsible truncation section describing what was omitted (only when truncation occurred)
 - if secrets were detected during scan, include a warning section (never include raw secret)
 - if posting errors occurred during the run (for example invalid discussion positions), include a collapsible "Run errors" section with brief, non-secret error summaries
