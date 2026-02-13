@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
@@ -96,7 +97,27 @@ class LoggingConfig(StrictModel):
     structured: bool = True
 
 
+def _default_note_timezone() -> str:
+    local_now = datetime.now().astimezone()
+    tzinfo = local_now.tzinfo
+    if tzinfo is not None:
+        key = getattr(tzinfo, "key", None)
+        if isinstance(key, str) and key:
+            return key
+
+    offset = local_now.strftime("%z")
+    if len(offset) == 5 and offset[0] in {"+", "-"}:
+        return f"{offset[:3]}:{offset[3:]}"
+
+    tz_name = local_now.strftime("%Z")
+    if tz_name:
+        return tz_name
+    return "UTC"
+
+
 class AppConfig(StrictModel):
+    workdir: str = ".diffsan"
+    note_timezone: str = Field(default_factory=_default_note_timezone)
     mode: ModeConfig = Field(default_factory=ModeConfig)
     limits: LimitsConfig = Field(default_factory=LimitsConfig)
     truncation: TruncationConfig = Field(default_factory=TruncationConfig)

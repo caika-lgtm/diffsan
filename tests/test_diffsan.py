@@ -2,7 +2,6 @@
 
 import json
 import re
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -39,12 +38,15 @@ def test_cli_help() -> None:
     assert re.search(r"--\s*dry\s*-\s*run", plain)
 
 
-def test_cli_dry_run_writes_artifacts(tmp_path: Path) -> None:
+def test_cli_dry_run_writes_artifacts(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Dry run writes milestone-0 required artifacts."""
     workdir = tmp_path / ".diffsan"
+    monkeypatch.setenv("DIFFSAN_WORKDIR", str(workdir))
     result = runner.invoke(
         app,
-        ["--ci", "--dry-run", "--workdir", str(workdir)],
+        ["--ci", "--dry-run"],
     )
 
     assert result.exit_code == 0
@@ -63,7 +65,7 @@ def test_cli_dry_run_writes_artifacts(tmp_path: Path) -> None:
 
 
 def test_cli_failure_writes_run_json_and_nonzero(
-    tmp_path: Path,
+    tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Failures still persist structured run.json and return non-zero."""
@@ -79,10 +81,11 @@ def test_cli_failure_writes_run_json_and_nonzero(
 
     monkeypatch.setattr(run_module, "_run_pipeline", _boom)
     workdir = tmp_path / ".diffsan"
+    monkeypatch.setenv("DIFFSAN_WORKDIR", str(workdir))
 
     result = runner.invoke(
         app,
-        ["--ci", "--dry-run", "--workdir", str(workdir)],
+        ["--ci", "--dry-run"],
     )
 
     assert result.exit_code == 1
@@ -96,10 +99,13 @@ def test_cli_failure_writes_run_json_and_nonzero(
     assert payload["error"]["error_code"] == ErrorCode.DIFF_FETCH_FAILED
 
 
-def test_cli_non_ci_failure_prints_events(tmp_path: Path) -> None:
+def test_cli_non_ci_failure_prints_events(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Non-CI runs still surface key error events in console output."""
     workdir = tmp_path / ".diffsan"
-    result = runner.invoke(app, ["--workdir", str(workdir)])
+    monkeypatch.setenv("DIFFSAN_WORKDIR", str(workdir))
+    result = runner.invoke(app, [])
 
     assert result.exit_code == 1
     assert "[diffsan] run.started" in result.output
@@ -110,8 +116,8 @@ def test_cli_non_ci_failure_prints_events(tmp_path: Path) -> None:
     assert "[diffsan] run.finished | ok=False" in result.output
 
 
-def test_cli_note_timezone_option_is_forwarded(tmp_path: Path, monkeypatch) -> None:
-    """CLI forwards note timezone option into RunOptions."""
+def test_cli_config_option_is_forwarded(tmp_path, monkeypatch) -> None:
+    """CLI forwards config option into RunOptions."""
     captured: dict[str, object] = {}
 
     def _fake_run(options):
@@ -124,20 +130,18 @@ def test_cli_note_timezone_option_is_forwarded(tmp_path: Path, monkeypatch) -> N
         app,
         [
             "--dry-run",
-            "--workdir",
-            str(tmp_path / ".diffsan"),
-            "--note-timezone",
-            "UTC",
+            "--config",
+            str(tmp_path / "diffsan.toml"),
         ],
     )
 
     assert result.exit_code == 0
     options = captured["options"]
-    assert getattr(options, "note_timezone", None) == "UTC"
+    assert getattr(options, "config_file", None) == str(tmp_path / "diffsan.toml")
 
 
 def test_run_workdir_creation_failure_falls_back_to_default(
-    tmp_path: Path,
+    tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """run() falls back to default workdir when requested workdir creation fails."""

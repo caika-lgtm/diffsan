@@ -1,0 +1,90 @@
+# Configuration
+
+`diffsan` derives runtime config from four sources, in this precedence order:
+
+1. CLI overrides
+2. Environment variables
+3. Config file
+4. Built-in defaults
+
+## Source Details
+
+- CLI overrides
+  - `--ci/--no-ci` overrides `mode.ci`
+  - `--config <path>` selects a specific TOML config file
+- Environment variables
+  - All config env vars use `DIFFSAN_` prefix
+  - Nested keys use `__` as delimiter (for example: `DIFFSAN_LIMITS__MAX_FILES=80`)
+  - Config-file selector env var: `DIFFSAN_CONFIG_FILE`
+- Config file
+  - Default file name: `.diffsan.toml` in current working directory
+  - If `--config` is passed, that file is used
+  - If `DIFFSAN_CONFIG_FILE` is set (and `--config` is not), that file is used
+  - File format: TOML
+
+`workdir` and `note_timezone` are config values, not dedicated CLI flags.
+
+## Example `.diffsan.toml`
+
+```toml
+workdir = ".diffsan"
+note_timezone = "UTC"
+
+[mode]
+ci = true
+
+[limits]
+max_diff_chars = 250000
+max_files = 80
+
+[agent]
+verbosity = "high"
+skills = ["security", "testing"]
+```
+
+## Defaults
+
+| Key | Default |
+| --- | --- |
+| `workdir` | `.diffsan` |
+| `note_timezone` | system local timezone |
+| `mode.ci` | `false` |
+| `limits.max_diff_chars` | `200000` |
+| `limits.max_files` | `60` |
+| `limits.max_hunks_per_file` | `40` |
+| `truncation.priority_extensions` | `[".py",".js",".ts",".go",".java",".rb",".php",".rs"]` |
+| `truncation.depriority_extensions` | `[".md",".rst",".txt",".lock"]` |
+| `truncation.include_extensions` | `null` |
+| `truncation.ignore_globs` | `["docs/**","**/*.generated.*"]` |
+| `secrets.enabled` | `true` |
+| `secrets.extra_patterns` | `[]` |
+| `secrets.post_warning_to_mr` | `true` |
+| `skip.skip_on_auto_merge` | `true` |
+| `skip.skip_on_same_fingerprint` | `true` |
+| `agent.agent` | `cursor` |
+| `agent.cursor_command` | `null` |
+| `agent.max_json_retries` | `3` |
+| `agent.json_repair_prompt` | `Return ONLY valid JSON that matches the schema.` |
+| `agent.verbosity` | `medium` |
+| `agent.skills` | `[]` |
+| `agent.prompt_template` | `null` |
+| `gitlab.enabled` | `true` |
+| `gitlab.base_url` | `https://gitlab.com` |
+| `gitlab.project_id` | `null` |
+| `gitlab.mr_iid` | `null` |
+| `gitlab.token_env` | `GITLAB_TOKEN` |
+| `gitlab.idempotent_summary` | `false` |
+| `gitlab.summary_note_tag` | `ai-reviewer` |
+| `gitlab.retry_max` | `3` |
+| `logging.level` | `info` |
+| `logging.structured` | `true` |
+
+## Environment Examples
+
+```bash
+export DIFFSAN_WORKDIR=".ai-review"
+export DIFFSAN_NOTE_TIMEZONE="Asia/Singapore"
+export DIFFSAN_MODE__CI="true"
+export DIFFSAN_LIMITS__MAX_FILES="80"
+export DIFFSAN_AGENT__SKILLS='["security","testing"]'
+```
