@@ -1,0 +1,55 @@
+docs/design/03-artifacts-and-events.md
+  dee096b3e12e542a 179
+src/diffsan/contracts/models.py
+  dee096b3e12e542a 13,80,231
+tests/test_diffsan.py
+  dee096b3e12e542a 143-166
+tests/test_run_milestone1.py
+  dee096b3e12e542a 916-993
+docs/configuration.md
+  dee096b3e12e542a 14,46-51,96
+docs/design/01-architecture.md
+  dee096b3e12e542a 39-40
+tests/test_prompt.py
+  dee096b3e12e542a 73-80,110-111
+src/diffsan/cli.py
+  dee096b3e12e542a 9,42-48,73
+docs/design/02-contracts-and-schemas.md
+  dee096b3e12e542a 266-271
+src/diffsan/core/prompt.py
+  dee096b3e12e542a 18,138-140,147,149-154
+src/diffsan/core/config.py
+  dee096b3e12e542a 24,73,85,206,209,212-213,218-219
+src/diffsan/run.py
+  dee096b3e12e542a 27,49,79,108,314-317,320,339-340
+tests/test_verbosity.py
+  dee096b3e12e542a 1-80
+docs/design/07-agent-prompting.md
+  dee096b3e12e542a 28-31,178-181,187
+src/diffsan/core/verbosity.py
+  dee096b3e12e542a 1-52
+tests/test_config.py
+  dee096b3e12e542a 117-127
+docs/design/05-test-strategy.md
+  dee096b3e12e542a 281-283
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.3",
+  "base_commit_sha": "49123ef47acda42d8c7937553eb5d0845fc96bff",
+  "prompts": {
+    "dee096b3e12e542a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019c5699-ba4e-7bf2-a1d2-0242de29655e",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "kaian <caika@sea.com>",
+      "messages": [],
+      "total_additions": 328,
+      "total_deletions": 5,
+      "accepted_lines": 327,
+      "overriden_lines": 0
+    }
+  }
+}
