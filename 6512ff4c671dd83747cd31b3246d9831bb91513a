@@ -1,0 +1,29 @@
+src/diffsan/core/format.py
+  e351960bbdda092c 223-224,226-235,273-275
+docs/design/06-gitlab-integration.md
+  e351960bbdda092c 140,194-196
+docs/design/05-test-strategy.md
+  e351960bbdda092c 252-253
+tests/test_format.py
+  e351960bbdda092c 112,131,160,362,437-440,444,469-473,524-526
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "6512ff4c671dd83747cd31b3246d9831bb91513a",
+  "prompts": {
+    "e351960bbdda092c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019c8e84-81f6-76b2-b25c-c251743d5696",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "kaian <caika@sea.com>",
+      "messages": [],
+      "total_additions": 51,
+      "total_deletions": 32,
+      "accepted_lines": 38,
+      "overriden_lines": 0
+    }
+  }
+}
