@@ -82,6 +82,13 @@ Cursor CLI does not guarantee structured output. `diffsan` must:
 3. Validate with Pydantic.
 4. If parsing/validation fails, retry with a repair prompt.
 
+Execution defaults for Cursor CLI in diffsan:
+
+- Default command: `cursor-agent --print --output-format json --trust`
+- If `CURSOR_API_KEY` is set, diffsan passes it via `--api-key`.
+- If a custom `agent.cursor_command` is configured without a trust flag (`--trust`, `--yolo`, `-f`), diffsan appends `--trust`.
+- Any sensitive command argument values are redacted in persisted error context.
+
 ### Retry loop rules
 
 - Maximum attempts: `max_json_retries` (default 3)

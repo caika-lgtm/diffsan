@@ -53,6 +53,7 @@ def test_run_cursor_once_uses_default_command_with_api_key(
             "json",
             "--api-key",
             "test-token",
+            "--trust",
         ]
     ]
 
@@ -60,7 +61,7 @@ def test_run_cursor_once_uses_default_command_with_api_key(
 def test_run_cursor_once_uses_custom_cursor_command(
     monkeypatch,
 ) -> None:
-    """Custom cursor_command is used as-is when configured."""
+    """Custom cursor_command is used and gets trust flag when missing."""
     commands: list[list[str]] = []
 
     def _run(
@@ -88,7 +89,15 @@ def test_run_cursor_once_uses_custom_cursor_command(
     run_cursor_once("prompt-text", config)
 
     assert commands == [
-        ["cursor-agent", "--print", "--output-format", "json", "--model", "gpt-5"]
+        [
+            "cursor-agent",
+            "--print",
+            "--output-format",
+            "json",
+            "--model",
+            "gpt-5",
+            "--trust",
+        ]
     ]
 
 
@@ -116,7 +125,52 @@ def test_run_cursor_once_default_command_without_api_key(monkeypatch) -> None:
 
     run_cursor_once("prompt-text", AppConfig())
 
-    assert commands == [["cursor-agent", "--print", "--output-format", "json"]]
+    assert commands == [
+        ["cursor-agent", "--print", "--output-format", "json", "--trust"]
+    ]
+
+
+def test_run_cursor_once_custom_command_keeps_existing_trust_flag(monkeypatch) -> None:
+    """Custom cursor command should not duplicate trust when already provided."""
+    commands: list[list[str]] = []
+
+    def _run(
+        command: list[str],
+        *,
+        input: str,
+        text: bool,
+        capture_output: bool,
+        check: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        assert input == "prompt-text"
+        assert text is True
+        assert capture_output is True
+        assert check is False
+        return subprocess.CompletedProcess(command, 0, stdout="{}", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _run)
+
+    config = AppConfig(
+        agent=AgentConfig(
+            cursor_command=(
+                "cursor-agent --print --output-format json --model gpt-5 --trust"
+            ),
+        )
+    )
+    run_cursor_once("prompt-text", config)
+
+    assert commands == [
+        [
+            "cursor-agent",
+            "--print",
+            "--output-format",
+            "json",
+            "--model",
+            "gpt-5",
+            "--trust",
+        ]
+    ]
 
 
 def test_run_cursor_once_rejects_empty_custom_command() -> None:
@@ -142,6 +196,13 @@ def test_run_cursor_once_wraps_subprocess_oserror(monkeypatch) -> None:
 
     assert error.value.error_info.error_code == ErrorCode.AGENT_EXEC_FAILED
     assert error.value.error_info.cause is not None
+    assert error.value.error_info.context["command"] == [
+        "cursor-agent",
+        "--print",
+        "--output-format",
+        "json",
+        "--trust",
+    ]
 
 
 def test_run_cursor_once_nonzero_exit_raises(monkeypatch) -> None:
@@ -162,3 +223,31 @@ def test_run_cursor_once_nonzero_exit_raises(monkeypatch) -> None:
 
     assert error.value.error_info.error_code == ErrorCode.AGENT_EXEC_FAILED
     assert error.value.error_info.cause == "unknown agent error"
+
+
+def test_run_cursor_once_redacts_api_key_in_error_context(monkeypatch) -> None:
+    """Sensitive command values should be redacted before persisting errors."""
+    config = AppConfig(
+        agent=AgentConfig(cursor_command="cursor-agent --api-key secret-token"),
+    )
+
+    def _run(_command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            ["cursor-agent"],
+            1,
+            stdout="",
+            stderr="failed",
+        )
+
+    monkeypatch.setattr(subprocess, "run", _run)
+
+    with pytest.raises(ReviewerError) as error:
+        run_cursor_once("prompt-text", config)
+
+    assert error.value.error_info.error_code == ErrorCode.AGENT_EXEC_FAILED
+    assert error.value.error_info.context["command"] == [
+        "cursor-agent",
+        "--api-key",
+        "[REDACTED]",
+        "--trust",
+    ]
