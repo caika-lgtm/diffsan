@@ -220,26 +220,25 @@ def _append_unpositioned_findings(
         normalized_path = _normalize_path(finding.path)
         line_start = min(finding.line_start, finding.line_end)
         line_end = max(finding.line_start, finding.line_end)
-        line_ref = (
-            str(line_start) if line_start == line_end else f"{line_start}-{line_end}"
-        )
-        section.append(
-            f"- **[{finding.category}/{finding.severity}]** "
-            f"`{normalized_path}:{line_ref}` "
-            f"{_single_line(finding.body_markdown)}"
+        section.extend(
+            [
+                (
+                    "<details><summary>"
+                    f"**[{finding.category}/{finding.severity}]** "
+                    "<code>"
+                    f"{normalized_path}:{line_start}-{line_end}"
+                    "</code></summary>"
+                ),
+                "",
+                finding.body_markdown.strip(),
+                "</details>",
+            ]
         )
 
     section_text = "\n".join(section)
     if not summary:
         return section_text
     return f"{summary}\n\n{section_text}"
-
-
-def _single_line(markdown: str, limit: int = 160) -> str:
-    text = " ".join(part.strip() for part in markdown.splitlines() if part.strip())
-    if len(text) <= limit:
-        return text
-    return f"{text[: limit - 3].rstrip()}..."
 
 
 def _normalize_path(path: str) -> str:
@@ -270,8 +269,10 @@ def build_summary_note_body(
         f"<!-- diffsan:{summary_note_tag} -->",
         fingerprint_marker.strip(),
         prior_digest_marker.strip(),
-        post_plan.summary_meta_collapsible,
     ]
+    metadata = post_plan.summary_meta_collapsible.strip()
+    if metadata:
+        sections.extend(["---", metadata])
     if truncation.truncated:
         sections.append(_build_truncation_details_collapsible(truncation))
     if include_secret_warning and redaction_found:

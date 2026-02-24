@@ -109,6 +109,7 @@ def test_build_summary_note_body_includes_tag_and_truncation_and_warning() -> No
     assert "<!-- diffsan:ai-reviewer -->" in body
     assert "<!-- diffsan:fingerprint:sha256:abc -->" in body
     assert "<!-- diffsan:prior_digest:abc -->" in body
+    assert "\n\n---\n\n<details><summary><strong>Metadata</strong></summary>" in body
     assert "<details><summary><strong>Truncation details</strong></summary>" in body
     assert "**Original chars:** `1000`" in body
     assert "`[file]` `docs/readme.md` Dropped" in body
@@ -127,7 +128,22 @@ def test_build_summary_note_body_omits_secret_warning_when_disabled() -> None:
     )
 
     assert "Secret Scan Warning" not in body
+    assert "\n\n---\n\nm" in body
     assert "<details><summary><strong>Truncation details</strong></summary>" not in body
+
+
+def test_build_summary_note_body_omits_horizontal_rule_when_metadata_empty() -> None:
+    """No metadata block should not render a separator line."""
+    body = build_summary_note_body(
+        review=ReviewOutput(summary_markdown="summary", findings=[], meta=ReviewMeta()),
+        post_plan=PostPlan(summary_markdown="s", summary_meta_collapsible="   "),
+        summary_note_tag="ai-reviewer",
+        truncation=TruncationReport(),
+        redaction_found=False,
+        include_secret_warning=False,
+    )
+
+    assert "\n\n---\n\n" not in body
 
 
 def test_build_summary_note_body_includes_run_errors_section_when_present() -> None:
@@ -155,6 +171,7 @@ def test_build_summary_note_body_includes_run_errors_section_when_present() -> N
 
     assert _RUN_ERRORS_MARKER in body_with_errors
     assert "GITLAB_POSITION_INVALID" in body_with_errors
+    assert "\n\n---\n\nm" in body_with_errors
     assert _RUN_ERRORS_MARKER not in body_without_errors
 
 
@@ -356,6 +373,7 @@ def test_build_summary_note_body_truncation_without_items() -> None:
         include_secret_warning=False,
     )
 
+    assert "\n\n---\n\nm" in body
     assert "<details><summary><strong>Truncation details</strong></summary>" in body
     assert "**Items:**" not in body
 
@@ -430,11 +448,14 @@ def test_build_post_plan_maps_discussions_and_unpositioned_findings() -> None:
     assert plan.discussions[0].position.position_type == "text"
     assert plan.discussions[0].position.new_line == 2
     assert "### Unpositioned findings" in plan.summary_markdown
-    assert "`src/main.py:42`" in plan.summary_markdown
+    assert (
+        "<details><summary>**[correctness/medium]** "
+        "<code>src/main.py:42-42</code></summary>"
+    ) in plan.summary_markdown
 
 
 def test_build_post_plan_unpositioned_section_without_summary_and_long_body() -> None:
-    """Unpositioned-only output should render section and truncate long body preview."""
+    """Unpositioned-only output should render collapsible entries with full body."""
     review = ReviewOutput(
         summary_markdown="",
         findings=[
@@ -459,8 +480,11 @@ def test_build_post_plan_unpositioned_section_without_summary_and_long_body() ->
 
     assert plan.discussions == []
     assert plan.summary_markdown.startswith("### Unpositioned findings")
-    assert "`src/main.py:9`" in plan.summary_markdown
-    assert "..." in plan.summary_markdown
+    assert (
+        "<details><summary>**[maintainability/medium]** "
+        "<code>src/main.py:9-9</code></summary>"
+    ) in plan.summary_markdown
+    assert ("long " * 80).strip() in plan.summary_markdown
 
 
 def test_build_post_plan_handles_backslash_hunk_line_and_mismatch_path() -> None:
@@ -511,4 +535,6 @@ def test_build_post_plan_handles_backslash_hunk_line_and_mismatch_path() -> None
     assert plan.discussions[0].position.position_type == "text"
     assert plan.discussions[0].position.new_path == "src/main.py"
     assert plan.discussions[0].position.new_line == 2
-    assert "`src/other.py:2`" in plan.summary_markdown
+    assert (
+        "<details><summary>**[style/low]** <code>src/other.py:2-2</code></summary>"
+    ) in plan.summary_markdown

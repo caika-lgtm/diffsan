@@ -137,6 +137,7 @@ Use GitLab API to fetch MR details and read the field(s) that indicate:
 Post a single MR note containing:
 
 - `summary_markdown` from the agent
+- a horizontal rule (`---`) before metadata for visual separation
 - a collapsible `<details>` metadata section (fingerprint, agent info, timings, token usage if available, flags)
 - include total findings count and MR pipeline id (when available from CI)
 - human-readable timestamps and duration in metadata
@@ -190,6 +191,9 @@ GitLab requires a **position** object referencing:
 - When a finding points to unchanged lines or cannot be mapped reliably:
   - do **not** post a discussion
   - include it under an “Unpositioned findings” section in the summary note
+  - render each entry as a collapsible block where:
+    - `<summary>` includes `**[category/severity]**` and `path:line_start-line_end`
+    - `<details>` body contains the full finding `body_markdown` (no truncation)
   - still keep it in `review.json` artifacts
 
 This “degrade gracefully” approach avoids flakey 400 errors from invalid positions.

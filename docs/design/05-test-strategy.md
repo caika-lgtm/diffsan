@@ -249,6 +249,8 @@ Fixture guidance:
 - Builds `PostPlan` with:
   - `discussions[]` mapped from findings
   - unpositioned findings degrade gracefully (if position not computable)
+  - unpositioned findings rendered as per-finding `<details>` blocks with
+    `<summary>` category/severity + path/line-range and full `body_markdown`
 
 ---
 
