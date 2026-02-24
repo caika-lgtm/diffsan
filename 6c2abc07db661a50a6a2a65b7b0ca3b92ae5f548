@@ -1,0 +1,23 @@
+tests/test_format.py
+  e351960bbdda092c 112,131,135-148,174,376,451-454,458,483-487,538-540
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "6c2abc07db661a50a6a2a65b7b0ca3b92ae5f548",
+  "prompts": {
+    "e351960bbdda092c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019c8e84-81f6-76b2-b25c-c251743d5696",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "kaian <caika@sea.com>",
+      "messages": [],
+      "total_additions": 65,
+      "total_deletions": 32,
+      "accepted_lines": 31,
+      "overriden_lines": 0
+    }
+  }
+}
