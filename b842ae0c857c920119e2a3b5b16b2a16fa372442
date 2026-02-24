@@ -1,0 +1,29 @@
+docs/configuration.md
+  a71f21f1399bbf60 91-99
+docs/design/07-agent-prompting.md
+  a71f21f1399bbf60 85-91
+tests/test_agent_cursor.py
+  a71f21f1399bbf60 56,64,98-99,128-161,168-171,199-205,226-253
+src/diffsan/core/agent_cursor.py
+  a71f21f1399bbf60 18-19,42,59,69,84,90-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "b842ae0c857c920119e2a3b5b16b2a16fa372442",
+  "prompts": {
+    "a71f21f1399bbf60": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019c8dda-68ba-7f20-9bee-1f8dd531ce06",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "kaian <caika@sea.com>",
+      "messages": [],
+      "total_additions": 130,
+      "total_deletions": 7,
+      "accepted_lines": 116,
+      "overriden_lines": 0
+    }
+  }
+}
