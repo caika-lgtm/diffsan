@@ -283,7 +283,7 @@ The following artifacts are written for debuggability:
 
 ```json
 {
-  "body": "## **diffsan** Summary\n<sub><em>Automated merge request review</em></sub>\n\n### AI Review Summary\n...\n\n<!-- diffsan:ai-reviewer -->\n\n<details><summary><strong>Metadata</strong></summary>\n- **Fingerprint:** `sha256:abcd...`\n- **Agent:** `cursor`\n- **Findings:** `3`\n- **MR pipeline ID:** `123456789`\n- **Started:** `12 Feb 2026, 4:34PM SGT`\n- **Ended:** `12 Feb 2026, 4:35PM SGT`\n- **Duration:** `36.0 s`\n- **Truncated:** `true`\n- **Redaction found:** `false`\n</details>\n\n<details><summary><strong>Truncation details</strong></summary>\n- **Original files:** `48`\n- **Final files:** `30`\n</details>"
+  "body": "<sub>3 finding(s) by `cursor` in 36.0 s</sub>\n\n### AI Review Summary\n...\n\n<!-- diffsan:ai-reviewer -->\n\n<details><summary><strong>Metadata</strong></summary>\n- **Fingerprint:** `sha256:abcd...`\n- **Agent:** `cursor`\n- **Findings:** `3`\n- **MR pipeline ID:** `123456789`\n- **Started:** `12 Feb 2026, 4:34PM SGT`\n- **Ended:** `12 Feb 2026, 4:35PM SGT`\n- **Duration:** `36.0 s`\n- **Truncated:** `true`\n- **Redaction found:** `false`\n</details>\n\n<details><summary><strong>Truncation details</strong></summary>\n- **Original files:** `48`\n- **Final files:** `30`\n</details>"
 }
 ```
 

@@ -582,6 +582,7 @@ def _post_summary_note_to_gitlab(
         )
 
     note_body = build_summary_note_body(
+        review=review,
         post_plan=post_plan,
         summary_note_tag=config.gitlab.summary_note_tag,
         fingerprint_marker=encode_fingerprint_marker(
