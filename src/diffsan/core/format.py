@@ -253,6 +253,7 @@ def _normalize_path(path: str) -> str:
 
 def build_summary_note_body(
     *,
+    review: ReviewOutput,
     post_plan: PostPlan,
     summary_note_tag: str,
     fingerprint_marker: str = "",
@@ -264,8 +265,7 @@ def build_summary_note_body(
 ) -> str:
     """Render the final markdown body for the summary note."""
     sections: list[str] = [
-        "## **diffsan** Summary",
-        "<sub><em>Automated merge request review</em></sub>",
+        f"<sub>{_build_summary_subline(review)}</sub>",
         post_plan.summary_markdown.strip(),
         f"<!-- diffsan:{summary_note_tag} -->",
         fingerprint_marker.strip(),
@@ -289,6 +289,17 @@ def build_summary_note_body(
     if run_errors:
         sections.append(_build_run_errors_collapsible(run_errors))
     return "\n\n".join(section for section in sections if section.strip()) + "\n"
+
+
+def _build_summary_subline(review: ReviewOutput) -> str:
+    findings_count = len(review.findings)
+    agent_name = review.meta.agent.strip().replace("`", "'")
+    if not agent_name:
+        agent_name = "unknown"
+    duration = "unknown"
+    if review.meta.timings is not None:
+        duration = _format_duration(review.meta.timings.duration_ms)
+    return f"{findings_count} finding(s) by `{agent_name}` in {duration}"
 
 
 def _build_run_errors_collapsible(run_errors: list[str]) -> str:

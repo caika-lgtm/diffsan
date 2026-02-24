@@ -64,6 +64,18 @@ def test_build_post_plan_includes_metadata_collapsible() -> None:
 
 def test_build_summary_note_body_includes_tag_and_truncation_and_warning() -> None:
     """Rendered summary note body includes marker and truncation disclosure."""
+    review = ReviewOutput(
+        summary_markdown="### AI Review Summary",
+        findings=[],
+        meta=ReviewMeta(
+            agent="cursor",
+            timings=TimingMeta(
+                started_at=datetime(2026, 2, 12, 12, 0, 0, tzinfo=UTC),
+                ended_at=datetime(2026, 2, 12, 12, 0, 2, tzinfo=UTC),
+                duration_ms=2000,
+            ),
+        ),
+    )
     plan = PostPlan(
         summary_markdown="### AI Review Summary\n- Item",
         summary_meta_collapsible=(
@@ -82,6 +94,7 @@ def test_build_summary_note_body_includes_tag_and_truncation_and_warning() -> No
         items=[TruncationItem(kind="file", path="docs/readme.md", details="Dropped")],
     )
     body = build_summary_note_body(
+        review=review,
         post_plan=plan,
         summary_note_tag="ai-reviewer",
         fingerprint_marker="<!-- diffsan:fingerprint:sha256:abc -->",
@@ -91,8 +104,8 @@ def test_build_summary_note_body_includes_tag_and_truncation_and_warning() -> No
         include_secret_warning=True,
     )
 
-    assert "## **diffsan** Summary" in body
-    assert "<sub><em>Automated merge request review</em></sub>" in body
+    assert "## **diffsan** Summary" not in body
+    assert "<sub>0 finding(s) by `cursor` in 2.0 s</sub>" in body
     assert "<!-- diffsan:ai-reviewer -->" in body
     assert "<!-- diffsan:fingerprint:sha256:abc -->" in body
     assert "<!-- diffsan:prior_digest:abc -->" in body
@@ -105,6 +118,7 @@ def test_build_summary_note_body_includes_tag_and_truncation_and_warning() -> No
 def test_build_summary_note_body_omits_secret_warning_when_disabled() -> None:
     """Secret warning section is optional."""
     body = build_summary_note_body(
+        review=ReviewOutput(summary_markdown="summary", findings=[], meta=ReviewMeta()),
         post_plan=PostPlan(summary_markdown="s", summary_meta_collapsible="m"),
         summary_note_tag="ai-reviewer",
         truncation=TruncationReport(),
@@ -119,6 +133,7 @@ def test_build_summary_note_body_omits_secret_warning_when_disabled() -> None:
 def test_build_summary_note_body_includes_run_errors_section_when_present() -> None:
     """Run errors section renders only when error lines are provided."""
     body_with_errors = build_summary_note_body(
+        review=ReviewOutput(summary_markdown="summary", findings=[], meta=ReviewMeta()),
         post_plan=PostPlan(summary_markdown="s", summary_meta_collapsible="m"),
         summary_note_tag="ai-reviewer",
         truncation=TruncationReport(),
@@ -129,6 +144,7 @@ def test_build_summary_note_body_includes_run_errors_section_when_present() -> N
         ],
     )
     body_without_errors = build_summary_note_body(
+        review=ReviewOutput(summary_markdown="summary", findings=[], meta=ReviewMeta()),
         post_plan=PostPlan(summary_markdown="s", summary_meta_collapsible="m"),
         summary_note_tag="ai-reviewer",
         truncation=TruncationReport(),
@@ -325,6 +341,7 @@ def test_build_post_plan_local_timezone_falls_back_when_unavailable(
 def test_build_summary_note_body_truncation_without_items() -> None:
     """Truncation section should render even when item list is empty."""
     body = build_summary_note_body(
+        review=ReviewOutput(summary_markdown="summary", findings=[], meta=ReviewMeta()),
         post_plan=PostPlan(summary_markdown="s", summary_meta_collapsible="m"),
         summary_note_tag="ai-reviewer",
         truncation=TruncationReport(
