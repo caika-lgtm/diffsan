@@ -208,17 +208,20 @@ If GitLab returns `400` with message like “position is invalid”:
 
 `diffsan` stores the fingerprint and optional compact digest inside the summary note’s metadata section.
 
-### How to locate the prior summary note
+### How to locate prior context
 
 - list MR notes and search for:
   - `summary_note_tag` marker (comment tag or heading)
   - optionally ensure author is the bot user (if accessible)
+- list MR discussions and collect inline comment bodies (both resolved and unresolved)
 
 ### What to parse out
 
 - fingerprint: `sha256:<value>`
 - compact digest: a short list of prior findings
   - `finding_id`, `title`, `severity`, `path`, `line range`
+- all tagged prior summary markdown blocks
+- all prior inline discussion comments (resolved and unresolved)
 - preferred source is the embedded digest marker payload; if absent, fall back to
   parsing the fingerprint marker comment; if that is absent, fall back to
   parsing the metadata fingerprint line.
@@ -228,7 +231,7 @@ If GitLab returns `400` with message like “position is invalid”:
 - Parsing should be tolerant:
   - ignore malformed sections
   - if fingerprint is missing, proceed without “already reviewed” context
-- Always prefer structured storage in the note content over trying to infer from discussions.
+- If discussions cannot be fetched, continue with note-only prior context.
 
 ---
 

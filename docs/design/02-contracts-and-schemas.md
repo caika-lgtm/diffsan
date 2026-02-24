@@ -15,7 +15,7 @@ Minimum artifacts (MVP v0):
 - `diff.prepared.patch` — ignored/prioritized/truncated/redacted diff used in prompt
 - `truncation.json` — truncation report
 - `redaction.json` — secret scanning/redaction report
-- `prior_digest.json` — extracted digest from prior bot note (if any)
+- `prior_digest.json` — extracted digest from prior bot summary notes + inline discussions (if any)
 - `prompt.txt` — prompt passed to agent
 - `agent.raw.txt` — raw agent stdout (may be invalid JSON)
 - `agent.raw.attemptN.txt` — per-attempt raw agent stdout for retry debugging
@@ -190,7 +190,23 @@ Fields are grouped for clarity. Exact defaults are implementation-defined but sh
       "severity": "high"
     }
   ],
-  "summary_hint": "Previously flagged unsafe eval and missing tests."
+  "summary_hint": "Previously flagged unsafe eval and missing tests.",
+  "summaries": [
+    {
+      "note_id": 98765,
+      "text": "### AI Review Summary\n- Prior summary markdown..."
+    }
+  ],
+  "inline_comments": [
+    {
+      "discussion_id": "a1b2c3",
+      "note_id": 24680,
+      "path": "app/auth.py",
+      "line": 95,
+      "resolved": false,
+      "body": "Please avoid eval() here."
+    }
+  ]
 }
 ```
 

@@ -48,6 +48,8 @@ def test_build_embedded_prior_digest_compacts_review_findings() -> None:
     assert digest.findings[0].title == "Use safer parsing logic."
     assert digest.findings[0].finding_id.startswith("f-")
     assert digest.summary_hint == "AI summary"
+    assert digest.summaries == []
+    assert digest.inline_comments == []
 
 
 def test_extract_prior_digest_reads_latest_tagged_note_marker() -> None:
@@ -115,11 +117,96 @@ def test_extract_prior_digest_reads_fingerprint_marker_when_digest_missing() -> 
     assert digest.prior_fingerprint.value == "abababab"
 
 
+def test_extract_prior_digest_collects_all_prior_summaries() -> None:
+    """All tagged summary notes should contribute prior summary text."""
+    notes = [
+        {
+            "id": 3,
+            "body": (
+                "<sub>1 finding(s) by `cursor` in 1.0 s</sub>\n\n"
+                "### Latest Summary\n- latest item\n\n"
+                "<!-- diffsan:ai-reviewer -->\n"
+                "<!-- diffsan:fingerprint:sha256:aaa -->"
+            ),
+        },
+        {
+            "id": 2,
+            "body": (
+                "## **diffsan** Summary\n"
+                "<sub><em>Automated merge request review</em></sub>\n\n"
+                "### Older Summary\n- older item\n\n"
+                "<!-- diffsan:ai-reviewer -->"
+            ),
+        },
+    ]
+
+    digest = extract_prior_digest(notes=notes, summary_note_tag="ai-reviewer")
+
+    assert digest is not None
+    assert len(digest.summaries) == 2
+    assert digest.summaries[0].note_id == 3
+    assert digest.summaries[0].text == "### Latest Summary\n- latest item"
+    assert digest.summaries[1].note_id == 2
+    assert digest.summaries[1].text == "### Older Summary\n- older item"
+    assert digest.summary_hint == "Latest Summary"
+
+
+def test_extract_prior_digest_collects_all_inline_discussion_comments() -> None:
+    """All inline comments should be included, regardless of resolved state."""
+    discussions = [
+        {
+            "id": "d-1",
+            "resolved": False,
+            "position": {"new_path": "a.py", "new_line": 5},
+            "notes": [
+                {"id": 10, "body": "Unresolved note", "resolved": False},
+                {"id": 11, "body": "Resolved reply", "resolved": True},
+            ],
+        },
+        {
+            "id": "d-2",
+            "resolved": True,
+            "notes": [
+                {
+                    "id": 20,
+                    "body": "Inline via note position",
+                    "position": {"new_path": "b.py", "new_line": 8},
+                }
+            ],
+        },
+        {
+            "id": "d-3",
+            "resolved": False,
+            "notes": [{"id": 30, "body": "General thread without position"}],
+        },
+    ]
+
+    digest = extract_prior_digest(
+        notes=[],
+        discussions=discussions,
+        summary_note_tag="ai-reviewer",
+    )
+
+    assert digest is not None
+    assert len(digest.inline_comments) == 3
+    assert digest.inline_comments[0].discussion_id == "d-1"
+    assert digest.inline_comments[0].path == "a.py"
+    assert digest.inline_comments[0].line == 5
+    assert digest.inline_comments[0].resolved is False
+    assert digest.inline_comments[1].resolved is True
+    assert digest.inline_comments[2].discussion_id == "d-2"
+    assert digest.inline_comments[2].path == "b.py"
+    assert digest.inline_comments[2].line == 8
+
+
 def test_get_prior_digest_returns_none_when_notes_payload_is_not_list() -> None:
     """API responses that are not note arrays should be ignored."""
 
     class _FakeClient:
         def list_notes(self):
+            return SimpleNamespace(payload={"unexpected": True})
+
+        def list_discussions(self):
             return SimpleNamespace(payload={"unexpected": True})
 
     assert (
@@ -129,6 +216,50 @@ def test_get_prior_digest_returns_none_when_notes_payload_is_not_list() -> None:
         )
         is None
     )
+
+
+def test_get_prior_digest_merges_note_digest_with_discussions() -> None:
+    """MR notes and discussions should both contribute to prior context."""
+
+    class _FakeClient:
+        def list_notes(self):
+            return SimpleNamespace(
+                payload=[
+                    {
+                        "id": 7,
+                        "body": (
+                            "<sub>1 finding(s) by `cursor` in 1.0 s</sub>\n\n"
+                            "### Prior Summary\n- item\n\n"
+                            "<!-- diffsan:ai-reviewer -->\n"
+                            "<!-- diffsan:fingerprint:sha256:abc -->"
+                        ),
+                    }
+                ]
+            )
+
+        def list_discussions(self):
+            return SimpleNamespace(
+                payload=[
+                    {
+                        "id": "d-7",
+                        "resolved": True,
+                        "position": {"new_path": "a.py", "new_line": 3},
+                        "notes": [{"id": 70, "body": "Done"}],
+                    }
+                ]
+            )
+
+    digest = get_prior_digest(
+        client=cast("Any", _FakeClient()),
+        summary_note_tag="ai-reviewer",
+    )
+
+    assert digest is not None
+    assert digest.prior_fingerprint is not None
+    assert digest.prior_fingerprint.value == "abc"
+    assert digest.summaries[0].text == "### Prior Summary\n- item"
+    assert digest.inline_comments[0].discussion_id == "d-7"
+    assert digest.inline_comments[0].resolved is True
 
 
 def test_extract_prior_digest_skips_invalid_notes_and_uses_older_valid_note() -> None:

@@ -8,6 +8,8 @@ from diffsan.contracts.models import (
     PreparedDiff,
     PriorDigest,
     PriorFinding,
+    PriorInlineComment,
+    PriorSummary,
     RedactionReport,
     TruncationItem,
     TruncationReport,
@@ -51,6 +53,28 @@ def test_build_agent_request_with_prior_truncation_and_redaction() -> None:
             )
         ],
         summary_hint="Previous review context",
+        summaries=[
+            PriorSummary(note_id=10, text="### Prior Summary A\n- item A"),
+            PriorSummary(note_id=9, text="### Prior Summary B\n- item B"),
+        ],
+        inline_comments=[
+            PriorInlineComment(
+                discussion_id="d-1",
+                note_id=101,
+                path="a.py",
+                line=10,
+                resolved=False,
+                body="Please validate this branch.",
+            ),
+            PriorInlineComment(
+                discussion_id="d-2",
+                note_id=202,
+                path="a.py",
+                line=12,
+                resolved=True,
+                body="Fixed in follow-up commit.",
+            ),
+        ],
     )
 
     request = build_agent_request(
@@ -70,6 +94,17 @@ def test_build_agent_request_with_prior_truncation_and_redaction() -> None:
     assert "## Prior Digest" in request.prompt
     assert "Previous review context" in request.prompt
     assert "[medium] a.py:10-12 Existing issue (f-1)" in request.prompt
+    assert "Prior summaries:" in request.prompt
+    assert "### Prior Summary A" in request.prompt
+    assert "### Prior Summary B" in request.prompt
+    assert (
+        "Prior inline discussion comments (includes resolved and unresolved):"
+        in request.prompt
+    )
+    assert (
+        "[unresolved] [d-1/101] a.py:10 Please validate this branch." in request.prompt
+    )
+    assert "[resolved] [d-2/202] a.py:12 Fixed in follow-up commit." in request.prompt
     assert "Extra skills to apply: security, python." in request.prompt
     assert request.meta.fingerprint == fingerprint
     assert request.meta.redaction_found is True

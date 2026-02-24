@@ -187,6 +187,36 @@ def _prior_digest_text(prior_digest: PriorDigest) -> str:
             f"[{finding.severity}] {finding.path}:{finding.line_range} "
             f"{finding.title} ({finding.finding_id})"
         )
+    if prior_digest.summaries:
+        lines.append("Prior summaries:")
+        for summary in prior_digest.summaries:
+            note_ref = (
+                f"note:{summary.note_id}"
+                if summary.note_id is not None
+                else "note:unknown"
+            )
+            lines.append(f"- [{note_ref}]")
+            lines.append(summary.text)
+    if prior_digest.inline_comments:
+        lines.append(
+            "Prior inline discussion comments (includes resolved and unresolved):"
+        )
+        for comment in prior_digest.inline_comments:
+            status = "unknown"
+            if comment.resolved is True:
+                status = "resolved"
+            elif comment.resolved is False:
+                status = "unresolved"
+            location = "<no-position>"
+            if comment.path and comment.line is not None:
+                location = f"{comment.path}:{comment.line}"
+            elif comment.path:
+                location = comment.path
+            discussion_ref = comment.discussion_id or "unknown"
+            note_ref = comment.note_id if comment.note_id is not None else "unknown"
+            lines.append(
+                f"- [{status}] [{discussion_ref}/{note_ref}] {location} {comment.body}"
+            )
     if prior_digest.summary_hint:
         lines.append(f"Summary hint: {prior_digest.summary_hint}")
     return "\n".join(lines)

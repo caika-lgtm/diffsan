@@ -137,6 +137,9 @@ class _FakeGitLabClient:
     def list_notes(self):
         return SimpleNamespace(status_code=200, payload=[], retry_count=0)
 
+    def list_discussions(self):
+        return SimpleNamespace(status_code=200, payload=[], retry_count=0)
+
     def create_note(self, body: str):
         _ = body
         return SimpleNamespace(note_id=101, status_code=201, retry_count=0)

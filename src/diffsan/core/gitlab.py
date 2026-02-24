@@ -98,6 +98,19 @@ class GitLabClient:
             invalid_400_error_code=None,
         )
 
+    def list_discussions(self) -> GitLabRequestResult:
+        """List MR discussions for prior inline comment context."""
+        context = self._resolve_context(error_code=ErrorCode.GITLAB_FETCH_PRIOR_FAILED)
+        return self._request_json(
+            method="GET",
+            context=context,
+            path=f"{self._mr_api_path(context)}/discussions?per_page=100",
+            payload=None,
+            error_code=ErrorCode.GITLAB_FETCH_PRIOR_FAILED,
+            action="list merge request discussions",
+            invalid_400_error_code=None,
+        )
+
     def create_note(self, body: str) -> GitLabNoteResult:
         """Create one MR note and return the GitLab note id if present."""
         context = self._resolve_context(error_code=ErrorCode.GITLAB_POST_FAILED)

@@ -23,7 +23,7 @@ This document defines how `diffsan` builds prompts and handles Cursor’s unstru
 - Prepared diff: `diff.prepared.patch` contents (ignored/prioritized/truncated/redacted)
 - Truncation report: `TruncationReport`
 - Redaction flag: `redaction.found`
-- Prior digest: `PriorDigest` (compact list of previously raised findings)
+- Prior digest: `PriorDigest` (prior findings + all previous summaries + all prior inline comments)
 - Config: verbosity + skills
 
 ### Prompt sections (recommended order)
