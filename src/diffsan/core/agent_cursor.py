@@ -15,6 +15,9 @@ from diffsan.contracts.errors import ErrorCode, ReviewerError
 if TYPE_CHECKING:
     from diffsan.contracts.models import AppConfig
 
+_TRUST_FLAGS = {"--trust", "--yolo", "-f"}
+_SENSITIVE_VALUE_FLAGS = {"--api-key", "--token", "--access-token", "--password"}
+
 
 @dataclass(frozen=True, slots=True)
 class AgentAttempt:
@@ -36,6 +39,7 @@ def run_cursor_once(prompt: str, config: AppConfig) -> AgentAttempt:
             "Agent command is empty",
             error_code=ErrorCode.AGENT_EXEC_FAILED,
         )
+    sanitized_command = _sanitize_command_for_error_context(command)
 
     started_at = datetime.now(tz=UTC)
     start = perf_counter()
@@ -52,7 +56,7 @@ def run_cursor_once(prompt: str, config: AppConfig) -> AgentAttempt:
             "Failed to execute agent command",
             error_code=ErrorCode.AGENT_EXEC_FAILED,
             cause=exc,
-            context={"command": command},
+            context={"command": sanitized_command},
         ) from exc
 
     duration_ms = int((perf_counter() - start) * 1000)
@@ -62,7 +66,7 @@ def run_cursor_once(prompt: str, config: AppConfig) -> AgentAttempt:
             "Agent command exited non-zero",
             error_code=ErrorCode.AGENT_EXEC_FAILED,
             cause=result.stderr.strip() or "unknown agent error",
-            context={"command": command, "returncode": result.returncode},
+            context={"command": sanitized_command, "returncode": result.returncode},
         )
 
     return AgentAttempt(
@@ -77,10 +81,24 @@ def run_cursor_once(prompt: str, config: AppConfig) -> AgentAttempt:
 
 def _build_cursor_command(cursor_cmd: str | None) -> list[str]:
     if cursor_cmd:
-        return shlex.split(cursor_cmd)
+        return _ensure_trust_flag(shlex.split(cursor_cmd))
 
     command = ["cursor-agent", "--print", "--output-format", "json"]
     api_key = os.getenv("CURSOR_API_KEY")
     if api_key:
         command.extend(["--api-key", api_key])
-    return command
+    return _ensure_trust_flag(command)
+
+
+def _ensure_trust_flag(command: list[str]) -> list[str]:
+    if any(flag in command for flag in _TRUST_FLAGS):
+        return command
+    return [*command, "--trust"]
+
+
+def _sanitize_command_for_error_context(command: list[str]) -> list[str]:
+    sanitized = list(command)
+    for idx, token in enumerate(sanitized[:-1]):
+        if token in _SENSITIVE_VALUE_FLAGS:
+            sanitized[idx + 1] = "[REDACTED]"
+    return sanitized

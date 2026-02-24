@@ -88,3 +88,12 @@ export DIFFSAN_MODE__CI="true"
 export DIFFSAN_LIMITS__MAX_FILES="80"
 export DIFFSAN_AGENT__SKILLS='["security","testing"]'
 ```
+
+## Cursor Command Behavior
+
+- If `agent.cursor_command` is not set, diffsan runs:
+  - `cursor-agent --print --output-format json --trust`
+- If `CURSOR_API_KEY` is present, diffsan adds:
+  - `--api-key <value>`
+- If `agent.cursor_command` is set and does not include any trust flag (`--trust`, `--yolo`, `-f`), diffsan appends `--trust`.
+- Error artifacts/events redact sensitive command argument values (for example, `--api-key`) as `[REDACTED]`.
