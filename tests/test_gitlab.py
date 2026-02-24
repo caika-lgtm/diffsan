@@ -209,6 +209,26 @@ def test_list_notes_success_returns_list_payload(monkeypatch) -> None:
     assert result.payload[0]["id"] == 1
 
 
+def test_list_discussions_success_returns_list_payload(monkeypatch) -> None:
+    """Listing discussions should return list payload without coercion."""
+    monkeypatch.setenv("TEST_GITLAB_TOKEN", "token")
+    client = GitLabClient(_base_config(), sleep_fn=lambda _: None)
+
+    def _send_request(*, method, url, token, payload):
+        _ = token, payload
+        assert method == "GET"
+        assert url.endswith("/merge_requests/7/discussions?per_page=100")
+        return 200, '[{"id":"d1","notes":[{"id":11,"body":"note"}]}]'
+
+    monkeypatch.setattr(client, "_send_request", _send_request)
+
+    result = client.list_discussions()
+
+    assert result.status_code == 200
+    assert isinstance(result.payload, list)
+    assert result.payload[0]["id"] == "d1"
+
+
 def test_create_note_400_maps_to_post_failed(monkeypatch) -> None:
     """HTTP 400 should fail without retry as GITLAB_POST_FAILED."""
     monkeypatch.setenv("TEST_GITLAB_TOKEN", "token")

@@ -14,7 +14,7 @@ The monolith is structured as a pipeline of modules with contracts defined in `0
 - **DiffProvider**: obtain MR diff (CI path is primary)
 - **Preprocessor**: ignore/prioritize/truncate + secret scan/redact
 - **Fingerprinting**: sha256(raw diff), deterministic finding IDs (optional)
-- **PriorDigestResolver**: fetch prior bot summary note and extract digest
+- **PriorDigestResolver**: fetch prior bot summary notes + inline discussions and extract digest
 - **SkipEngine**: decide whether to skip (MVP: auto-merge)
 - **PromptBuilder**: build agent prompt, inject schema + diff + digest + flags
 - **AgentRunner (Cursor)**: run headless Cursor; JSON repair retry loop

@@ -7,13 +7,15 @@ import binascii
 import hashlib
 import json
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from diffsan.contracts.models import (
     Finding,
     Fingerprint,
     PriorDigest,
     PriorFinding,
+    PriorInlineComment,
+    PriorSummary,
     ReviewOutput,
 )
 
@@ -35,32 +37,61 @@ def get_prior_digest(
     client: GitLabClient,
     summary_note_tag: str,
 ) -> PriorDigest | None:
-    """Fetch MR notes and extract the newest usable prior digest."""
+    """Fetch MR notes/discussions and extract the newest usable prior digest."""
     notes_result = client.list_notes()
     payload = notes_result.payload
-    if not isinstance(payload, list):
-        return None
+    notes = (
+        [item for item in payload if isinstance(item, dict)]
+        if isinstance(payload, list)
+        else []
+    )
 
-    notes = [item for item in payload if isinstance(item, dict)]
-    return extract_prior_digest(notes=notes, summary_note_tag=summary_note_tag)
+    discussions: list[dict[str, Any]] = []
+    list_discussions = getattr(client, "list_discussions", None)
+    if callable(list_discussions):
+        try:
+            discussions_result = list_discussions()
+        except Exception:
+            discussions = []
+        else:
+            discussions_payload = discussions_result.payload
+            if isinstance(discussions_payload, list):
+                discussions = [
+                    item for item in discussions_payload if isinstance(item, dict)
+                ]
+
+    return extract_prior_digest(
+        notes=notes,
+        discussions=discussions,
+        summary_note_tag=summary_note_tag,
+    )
 
 
 def extract_prior_digest(
     *,
     notes: list[dict[str, Any]],
+    discussions: list[dict[str, Any]] | None = None,
     summary_note_tag: str,
 ) -> PriorDigest | None:
-    """Extract prior digest from tagged diffsan notes, newest first."""
+    """Extract prior digest from tagged notes and inline discussions."""
     tagged_notes = _tagged_diffsan_notes(notes, summary_note_tag)
-    for note in tagged_notes:
-        body = note.get("body")
-        if not isinstance(body, str):
-            continue
-        digest = _parse_digest_from_note_body(body)
-        if digest is not None:
-            return digest
+    digest = _parse_latest_digest_from_tagged_notes(tagged_notes)
+    if digest is None:
+        digest = PriorDigest()
 
-    return None
+    summaries = _extract_all_prior_summaries(
+        tagged_notes=tagged_notes,
+        summary_note_tag=summary_note_tag,
+    )
+    inline_comments = _extract_inline_discussion_comments(discussions or [])
+
+    digest.summaries = summaries
+    digest.inline_comments = inline_comments
+
+    if digest.summary_hint is None and summaries:
+        digest.summary_hint = _summary_hint(summaries[0].text)
+
+    return digest if not _is_empty_digest(digest) else None
 
 
 def build_embedded_prior_digest(review: ReviewOutput) -> PriorDigest:
@@ -122,6 +153,19 @@ def _note_sort_key(note: dict[str, Any]) -> tuple[int, str]:
     return id_value, time_value
 
 
+def _parse_latest_digest_from_tagged_notes(
+    tagged_notes: list[dict[str, Any]],
+) -> PriorDigest | None:
+    for note in tagged_notes:
+        body = note.get("body")
+        if not isinstance(body, str):
+            continue
+        digest = _parse_digest_from_note_body(body)
+        if digest is not None:
+            return digest
+    return None
+
+
 def _parse_digest_from_note_body(body: str) -> PriorDigest | None:
     marker_match = _PRIOR_DIGEST_MARKER_RE.search(body)
     if marker_match is not None:
@@ -173,6 +217,146 @@ def _parse_fingerprint_value(raw: str) -> Fingerprint | None:
     if not algo or not value:
         return None
     return Fingerprint(algo=algo, value=value)
+
+
+def _extract_all_prior_summaries(
+    *,
+    tagged_notes: list[dict[str, Any]],
+    summary_note_tag: str,
+) -> list[PriorSummary]:
+    summaries: list[PriorSummary] = []
+    marker = f"<!-- diffsan:{summary_note_tag} -->"
+    for note in tagged_notes:
+        body = note.get("body")
+        if not isinstance(body, str):
+            continue
+        summary_text = _extract_summary_from_note_body(body, marker=marker)
+        if not summary_text:
+            continue
+        note_id = note.get("id")
+        summaries.append(
+            PriorSummary(
+                note_id=note_id if isinstance(note_id, int) else None,
+                text=summary_text,
+            )
+        )
+    return summaries
+
+
+def _extract_summary_from_note_body(
+    body: str,
+    *,
+    marker: str,
+) -> str | None:
+    marker_index = body.find(marker)
+    if marker_index < 0:
+        return None
+
+    prefix = body[:marker_index].strip()
+    if not prefix:
+        return None
+
+    lines = prefix.splitlines()
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    if lines and lines[0].strip() == "## **diffsan** Summary":
+        lines.pop(0)
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    if lines and lines[0].strip().startswith("<sub>"):
+        lines.pop(0)
+
+    summary = "\n".join(lines).strip()
+    return summary or None
+
+
+def _extract_inline_discussion_comments(
+    discussions: list[dict[str, Any]],
+) -> list[PriorInlineComment]:
+    comments: list[PriorInlineComment] = []
+    for discussion in discussions:
+        raw_notes = discussion.get("notes")
+        if not isinstance(raw_notes, list):
+            continue
+
+        discussion_position = (
+            discussion.get("position")
+            if isinstance(discussion.get("position"), dict)
+            else None
+        )
+        has_inline_position = discussion_position is not None or any(
+            isinstance(note, dict) and isinstance(note.get("position"), dict)
+            for note in raw_notes
+        )
+        if not has_inline_position:
+            continue
+
+        discussion_id = _normalize_discussion_id(discussion.get("id"))
+        discussion_resolved = (
+            discussion.get("resolved")
+            if isinstance(discussion.get("resolved"), bool)
+            else None
+        )
+
+        for note in raw_notes:
+            if not isinstance(note, dict):
+                continue
+            body = note.get("body")
+            if not isinstance(body, str):
+                continue
+            compact_body = body.strip()
+            if not compact_body:
+                continue
+
+            note_position = (
+                note.get("position")
+                if isinstance(note.get("position"), dict)
+                else discussion_position
+            )
+            path, line = _position_path_and_line(note_position)
+            resolved = (
+                note.get("resolved")
+                if isinstance(note.get("resolved"), bool)
+                else discussion_resolved
+            )
+            note_id = note.get("id")
+            comments.append(
+                PriorInlineComment(
+                    discussion_id=discussion_id,
+                    note_id=note_id if isinstance(note_id, int) else None,
+                    path=path,
+                    line=line,
+                    resolved=resolved,
+                    body=compact_body,
+                )
+            )
+    return comments
+
+
+def _normalize_discussion_id(raw_id: object) -> str | None:
+    if isinstance(raw_id, str):
+        return raw_id
+    if isinstance(raw_id, int):
+        return str(raw_id)
+    return None
+
+
+def _position_path_and_line(position: object) -> tuple[str | None, int | None]:
+    if not isinstance(position, dict):
+        return None, None
+    position_map = cast("dict[str, object]", position)
+
+    path = position_map.get("new_path")
+    if not isinstance(path, str):
+        old_path = position_map.get("old_path")
+        path = old_path if isinstance(old_path, str) else None
+
+    line = position_map.get("new_line")
+    if not isinstance(line, int):
+        old_line = position_map.get("old_line")
+        line = old_line if isinstance(old_line, int) else None
+
+    return path, line
 
 
 def _to_prior_finding(finding: Finding) -> PriorFinding:
@@ -238,4 +422,6 @@ def _is_empty_digest(digest: PriorDigest) -> bool:
         digest.prior_fingerprint is None
         and not digest.findings
         and (digest.summary_hint is None or not digest.summary_hint.strip())
+        and not digest.summaries
+        and not digest.inline_comments
     )

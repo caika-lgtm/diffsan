@@ -204,10 +204,26 @@ class PriorFinding(StrictModel):
     severity: Severity
 
 
+class PriorSummary(StrictModel):
+    note_id: int | None = None
+    text: str
+
+
+class PriorInlineComment(StrictModel):
+    discussion_id: str | None = None
+    note_id: int | None = None
+    path: str | None = None
+    line: int | None = None
+    resolved: bool | None = None
+    body: str
+
+
 class PriorDigest(StrictModel):
     prior_fingerprint: Fingerprint | None = None
     findings: list[PriorFinding] = Field(default_factory=list)
     summary_hint: str | None = None
+    summaries: list[PriorSummary] = Field(default_factory=list)
+    inline_comments: list[PriorInlineComment] = Field(default_factory=list)
 
 
 class SkipReason(StrictModel):

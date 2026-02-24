@@ -170,6 +170,8 @@ Fixture guidance:
 - Given fixture MR notes with a prior summary note, returns:
   - `prior_fingerprint`
   - compact `PriorDigest.findings`
+  - all prior summary markdown blocks in `PriorDigest.summaries`
+  - all inline discussion comments (resolved + unresolved) in `PriorDigest.inline_comments`
 
 **Failure tests**
 

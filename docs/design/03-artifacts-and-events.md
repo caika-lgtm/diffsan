@@ -50,7 +50,7 @@ The workdir must be created early (before network/subprocess work).
 - `redaction.json`
   - `RedactionReport` (hashes/length only, no raw secrets)
 - `prior_digest.json`
-  - `PriorDigest` if found, else write `{}` or omit (implementation choice)
+  - `PriorDigest` merged from prior tagged summary notes and inline discussions; if unavailable, write `{}` or omit (implementation choice)
 - `skip.json` (optional but useful)
   - `SkipDecision` (should_skip + reasons + fingerprint)
 
