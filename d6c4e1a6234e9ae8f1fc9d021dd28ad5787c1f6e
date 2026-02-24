@@ -1,0 +1,49 @@
+docs/design/07-agent-prompting.md
+  a71f21f1399bbf60 26
+docs/design/01-architecture.md
+  a71f21f1399bbf60 17
+src/diffsan/core/prior.py
+  a71f21f1399bbf60 10,17-18,40,43-47,49-60,62,65-66,73,76,78-80,82-84,86,88-89,91-92,94,156-160,164-166,222-359,425-426
+tests/test_prompt.py
+  a71f21f1399bbf60 11-12,56-77,97-107
+src/diffsan/contracts/models.py
+  a71f21f1399bbf60 207-220,225-226
+docs/design/05-test-strategy.md
+  a71f21f1399bbf60 173-174
+docs/design/06-gitlab-integration.md
+  a71f21f1399bbf60 211,216,223-224,234
+tests/test_prior.py
+  a71f21f1399bbf60 51-52,120-201,209-211,221-254,256-262
+docs/design/03-artifacts-and-events.md
+  a71f21f1399bbf60 53
+tests/test_gitlab.py
+  a71f21f1399bbf60 212-231
+tests/test_run_milestone1.py
+  a71f21f1399bbf60 140-142
+src/diffsan/core/gitlab.py
+  a71f21f1399bbf60 101-113
+src/diffsan/core/prompt.py
+  a71f21f1399bbf60 190-219
+docs/design/02-contracts-and-schemas.md
+  a71f21f1399bbf60 18,193-209
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "d6c4e1a6234e9ae8f1fc9d021dd28ad5787c1f6e",
+  "prompts": {
+    "a71f21f1399bbf60": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019c8dda-68ba-7f20-9bee-1f8dd531ce06",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "kaian <caika@sea.com>",
+      "messages": [],
+      "total_additions": 477,
+      "total_deletions": 22,
+      "accepted_lines": 469,
+      "overriden_lines": 0
+    }
+  }
+}
