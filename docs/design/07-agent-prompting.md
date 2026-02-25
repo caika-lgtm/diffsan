@@ -59,6 +59,8 @@ This document defines how `diffsan` builds prompts and handles Cursor’s unstru
 - “Return **ONLY** a JSON object.”
 - “Do not wrap in markdown or triple backticks.”
 - “Do not include any text before or after the JSON.”
+- “Do not include planning/process text or explanations.”
+- “The first character must be `{` and the last character must be `}`.”
 - “If you are unsure, still output valid JSON with best-effort findings.”
 
 ### Recommended guardrails
@@ -79,6 +81,9 @@ Cursor CLI does not guarantee structured output. `diffsan` must:
    - If using `cursor-agent --output-format json`, unwrap the outer envelope and
      parse the nested `result` JSON string before validating against
      `AgentReviewOutput`.
+   - If output has leading non-JSON preamble text, recover by parsing from the
+     first valid top-level JSON object start.
+   - Tolerate non-JSON trailing text after that recovered object.
 3. Validate with Pydantic.
 4. If parsing/validation fails, retry with a repair prompt.
 

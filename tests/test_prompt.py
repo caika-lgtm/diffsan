@@ -86,6 +86,11 @@ def test_build_agent_request_with_prior_truncation_and_redaction() -> None:
 
     assert "## Schema" in request.prompt
     assert "Return ONLY a JSON object." in request.prompt
+    assert "Do not include planning text, analysis, or explanations." in request.prompt
+    assert (
+        "The first character must be '{' and the last character must be '}'."
+        in request.prompt
+    )
     assert '"title": "AgentReviewOutput"' in request.prompt
     assert '"meta"' not in request.prompt
     assert "Truncation occurred: True." in request.prompt
@@ -160,6 +165,10 @@ def test_build_json_repair_prompt_includes_errors_and_excerpt() -> None:
 
     assert "You produced invalid output." in prompt
     assert "Return ONLY a corrected JSON object" in prompt
+    assert "Do not include planning text, analysis, or explanations." in prompt
+    assert (
+        "The first character must be '{' and the last character must be '}'." in prompt
+    )
     assert "- meta: object" not in prompt
     assert "- findings.0.line_start: Field required" in prompt
     assert "- meta.agent: Input should be a valid string" in prompt

@@ -23,6 +23,26 @@ def test_parse_and_validate_success() -> None:
     assert review.findings == []
 
 
+def test_parse_and_validate_ignores_non_json_leading_text() -> None:
+    """Leading non-JSON preamble is ignored when followed by valid JSON object."""
+    raw = 'Agent is preparing output...\n{"summary_markdown":"ok","findings":[]}'
+
+    review = parse_and_validate(raw)
+
+    assert review.summary_markdown == "ok"
+    assert review.findings == []
+
+
+def test_parse_and_validate_ignores_trailing_non_json_text() -> None:
+    """Trailing non-JSON text after a valid JSON object is ignored."""
+    raw = '{"summary_markdown":"ok","findings":[]}\nDone reviewing.'
+
+    review = parse_and_validate(raw)
+
+    assert review.summary_markdown == "ok"
+    assert review.findings == []
+
+
 def test_parse_and_validate_invalid_json() -> None:
     """Invalid JSON raises AGENT_OUTPUT_INVALID."""
     with pytest.raises(ReviewerError) as error:

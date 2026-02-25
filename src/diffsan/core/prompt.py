@@ -29,6 +29,8 @@ _JSON_RULES: Final[str] = "\n".join(
         "Return ONLY a JSON object.",
         "Do not wrap the JSON in markdown or backticks.",
         "Do not include any text before or after the JSON.",
+        "Do not include planning text, analysis, or explanations.",
+        "The first character must be '{' and the last character must be '}'.",
         "Use only allowed enum values for severity and category.",
     ]
 )
@@ -117,6 +119,8 @@ def build_json_repair_prompt(
                 "",
                 config.agent.json_repair_prompt,
                 "Return ONLY a corrected JSON object that matches this schema.",
+                "Do not include planning text, analysis, or explanations.",
+                "The first character must be '{' and the last character must be '}'.",
                 "",
                 _REPAIR_SCHEMA_SUMMARY,
                 "",
