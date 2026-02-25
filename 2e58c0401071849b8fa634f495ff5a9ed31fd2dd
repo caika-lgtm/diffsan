@@ -1,0 +1,31 @@
+tests/test_parse_validate.py
+  a1e467bf3566be42 26-45
+src/diffsan/core/prompt.py
+  a1e467bf3566be42 32-33,122-123
+docs/design/07-agent-prompting.md
+  a1e467bf3566be42 62-63,84-86
+src/diffsan/core/parse_validate.py
+  a1e467bf3566be42 13,18-20,22-23,25,28,32-33,35-39,41,44,48-75
+tests/test_prompt.py
+  a1e467bf3566be42 89-93,168-171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.5",
+  "base_commit_sha": "2e58c0401071849b8fa634f495ff5a9ed31fd2dd",
+  "prompts": {
+    "a1e467bf3566be42": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019c93fe-7538-7433-ac8b-bf2e60c27a59",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "kaian <caika@sea.com>",
+      "messages": [],
+      "total_additions": 93,
+      "total_deletions": 16,
+      "accepted_lines": 86,
+      "overriden_lines": 0
+    }
+  }
+}
