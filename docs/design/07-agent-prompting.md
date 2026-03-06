@@ -1,8 +1,8 @@
-This document defines how `diffsan` builds prompts and handles Cursor’s unstructured output to reliably obtain valid JSON.
+This document defines how `diffsan` builds prompts and handles agent output for both Cursor (unstructured) and Codex (structured) to reliably obtain valid review JSON.
 
 ## Goals
 
-- The agent must output **ONLY valid JSON** matching `AgentReviewOutput`.
+- The final agent payload must validate against `AgentReviewOutput`.
 - Avoid spam:
   - verbosity is configurable
   - inject compact prior digest
@@ -30,10 +30,10 @@ This document defines how `diffsan` builds prompts and handles Cursor’s unstru
 
 1. **Role and task**
    - “You are diffsan, an AI code reviewer…”
-2. **Output rules**
+2. **Output rules** (Cursor only)
    - “Return ONLY valid JSON. No markdown, no code fences, no commentary.”
    - “Must match the schema exactly.”
-3. **Schema**
+3. **Schema** (Cursor only)
    - Embed the `AgentReviewOutput` schema description (field names/types and allowed enums)
 4. **Review instructions**
    - Prioritize correctness/security first
@@ -52,7 +52,7 @@ This document defines how `diffsan` builds prompts and handles Cursor’s unstru
 
 ---
 
-## JSON-only requirement
+## Cursor JSON-only requirement
 
 ### Hard rules to include in the prompt
 
@@ -93,6 +93,20 @@ Execution defaults for Cursor CLI in diffsan:
 - If `CURSOR_API_KEY` is set, diffsan passes it via `--api-key`.
 - If a custom `agent.cursor_command` is configured without a trust flag (`--trust`, `--yolo`, `-f`), diffsan appends `--trust`.
 - Any sensitive command argument values are redacted in persisted error context.
+
+---
+
+## Codex structured-output strategy
+
+Codex CLI supports structured output directly through schema/output-file flags.
+
+Execution defaults for Codex CLI in diffsan:
+
+- Default command: `codex exec --output-schema <workdir>/codex-output-schema.json --output-last-message <workdir>/codex-output.json --sandbox read-only`
+- Prompt is passed through stdin.
+- diffsan reads JSON from `codex-output.json` and validates against `AgentReviewOutput`.
+- No JSON repair retry loop is used for codex runs.
+- `max_json_retries` and `json_repair_prompt` are cursor-only controls.
 
 ### Retry loop rules
 
@@ -217,7 +231,7 @@ Skill text must be short to avoid prompt bloat.
 
 ---
 
-## Example (very short) base instruction snippet
+## Example (very short) base instruction snippet (Cursor)
 
 ```
 

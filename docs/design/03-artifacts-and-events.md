@@ -58,12 +58,16 @@ The workdir must be created early (before network/subprocess work).
 
 - `prompt.txt`
   - exact prompt passed to the agent (must contain redacted diff only)
+- `codex-output-schema.json` (Codex runs)
+  - JSON schema passed to `codex exec --output-schema`
+- `codex-output.json` (Codex runs)
+  - structured JSON output written by `codex exec --output-last-message`
 - `agent.raw.txt`
-  - raw stdout from agent attempt 1 (may not be valid JSON)
+  - canonical raw agent payload used for parse/validate (may not be valid JSON)
 - `agent.stderr.txt` (optional but helpful)
   - raw stderr from agent attempt 1
 - `agent.raw.attemptN.txt` (optional)
-  - if repair retries occur, store each attempt separately
+  - per-attempt outputs (cursor may have multiple retries; codex is single-attempt)
 - `agent.run.json` (optional)
   - `AgentRunStats` and exit code for each attempt
 
@@ -127,6 +131,8 @@ Example failure:
   }
 }
 ```
+
+For codex single-attempt failures, the `attempts` key may be absent from error context.
 
 ---
 

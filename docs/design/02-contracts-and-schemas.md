@@ -30,6 +30,7 @@ Minimum artifacts (MVP v0):
 ### AppConfig (merged config)
 
 Fields are grouped for clarity. Exact defaults are implementation-defined but should be opinionated and reasonable.
+`agent.agent` is an enum with values: `cursor` or `codex`.
 
 ```json
 {
@@ -68,6 +69,7 @@ Fields are grouped for clarity. Exact defaults are implementation-defined but sh
   "agent": {
     "agent": "cursor",
     "cursor_command": null,
+    "codex_command": null,
     "max_json_retries": 3,
     "json_repair_prompt": "Return ONLY valid JSON that matches the schema.",
     "verbosity": "medium",
@@ -227,7 +229,9 @@ Fields are grouped for clarity. Exact defaults are implementation-defined but sh
 
 ### AgentRequest (internal)
 
-Contains the prompt plus metadata used for artifacts/logging. The prompt itself must instruct “JSON only.”
+Contains the prompt plus metadata used for artifacts/logging.
+- For cursor, the prompt includes strict JSON-only rules and embedded schema.
+- For codex, prompt omits JSON-only/schema sections because structured output is enforced by CLI flags.
 
 ```json
 {
@@ -245,7 +249,8 @@ Contains the prompt plus metadata used for artifacts/logging. The prompt itself 
 
 ### AgentReviewOutput (agent _must_ emit this JSON)
 
-- Cursor is unstructured → diffsan must validate and retry/repair until this schema is satisfied.
+- Cursor path is unstructured, so diffsan validates and may retry/repair.
+- Codex path uses `--output-schema` structured output, and diffsan still validates before continuing.
 
 ```json
 {
@@ -398,6 +403,8 @@ Suggested events (MVP):
   "cause": "pydantic.ValidationError: ..."
 }
 ```
+
+The `attempts` field is typically present for cursor retry exhaustion and may be absent for single-attempt codex failures.
 
 ### Suggested error codes
 

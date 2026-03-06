@@ -8,7 +8,7 @@ Agents and humans should treat these docs as the **source of truth** for require
 1. Obtain the MR diff against the target branch.
 2. Preprocess (ignore paths, prioritize code, truncate to limits, redact secrets).
 3. Decide whether to skip (MVP: skip on auto-merge).
-4. Build a prompt and run an AI agent headlessly (MVP: Cursor CLI).
+4. Build a prompt and run an AI agent headlessly (Cursor default, Codex optional).
 5. Validate the agent output as strict JSON (Pydantic schema), with retry/repair for unstructured agents.
 6. Format and post:
    - a **summary MR note** (markdown) with collapsible metadata and truncation details
@@ -19,7 +19,7 @@ Agents and humans should treat these docs as the **source of truth** for require
 
 - Do not block merges (the merge decision remains with humans; CI job may be allow-failure).
 - Standalone mode is minimal (prints to stdout, no GitLab posting).
-- Support for other agents (Codex CLI) and other forges (GitHub) is future work.
+- Support for additional agents beyond Cursor/Codex and other forges (GitHub) is future work.
 
 ## Reading guide (use this as an index)
 
@@ -65,5 +65,6 @@ If you are working on…
 - Secrets must be redacted before prompting.
 - Avoid spam: verbosity tunable; include compact prior digest; avoid repeating prior findings.
 - Artifacts (prompt + raw output + validated review) should be written even when failures occur.
-- Cursor output is unstructured; JSON validation + repair retries are required.
+- Cursor output is unstructured; JSON validation + repair retries are required for cursor runs.
+- Codex output is schema-structured; diffsan still validates once before post formatting.
 - Summary note contains collapsible metadata (fingerprint, timings, token usage, truncation info, redaction flag).

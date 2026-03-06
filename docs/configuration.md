@@ -63,6 +63,7 @@ skills = ["security", "testing"]
 | `skip.skip_on_same_fingerprint` | `true` |
 | `agent.agent` | `cursor` |
 | `agent.cursor_command` | `null` |
+| `agent.codex_command` | `null` |
 | `agent.max_json_retries` | `3` |
 | `agent.json_repair_prompt` | `Return ONLY valid JSON that matches the schema.` |
 | `agent.verbosity` | `medium` |
@@ -89,6 +90,13 @@ export DIFFSAN_LIMITS__MAX_FILES="80"
 export DIFFSAN_AGENT__SKILLS='["security","testing"]'
 ```
 
+## Agent Selection
+
+- `agent.agent` controls which CLI backend diffsan uses.
+- Allowed values:
+  - `cursor` (default): unstructured output path with schema-in-prompt and JSON repair retries.
+  - `codex`: structured output path using Codex output schema/output files and single-attempt validation.
+
 ## Cursor Command Behavior
 
 - If `agent.cursor_command` is not set, diffsan runs:
@@ -97,3 +105,11 @@ export DIFFSAN_AGENT__SKILLS='["security","testing"]'
   - `--api-key <value>`
 - If `agent.cursor_command` is set and does not include any trust flag (`--trust`, `--yolo`, `-f`), diffsan appends `--trust`.
 - Error artifacts/events redact sensitive command argument values (for example, `--api-key`) as `[REDACTED]`.
+
+## Codex Command Behavior
+
+- If `agent.codex_command` is not set, diffsan runs:
+  - `codex exec --output-schema <workdir>/codex-output-schema.json --output-last-message <workdir>/codex-output.json --sandbox read-only`
+- The prompt is provided via stdin.
+- diffsan writes the Codex schema/output files under the run workdir and reads JSON from `codex-output.json`.
+- `agent.max_json_retries` and `agent.json_repair_prompt` are cursor-only settings and are ignored when `agent.agent = "codex"`.

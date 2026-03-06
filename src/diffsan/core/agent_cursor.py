@@ -80,8 +80,11 @@ def run_cursor_once(prompt: str, config: AppConfig) -> AgentAttempt:
 
 
 def _build_cursor_command(cursor_cmd: str | None) -> list[str]:
-    if cursor_cmd:
-        return _ensure_trust_flag(shlex.split(cursor_cmd))
+    if cursor_cmd is not None:
+        custom_command = shlex.split(cursor_cmd)
+        if not custom_command:
+            return []
+        return _ensure_trust_flag(custom_command)
 
     command = ["cursor-agent", "--print", "--output-format", "json"]
     api_key = os.getenv("CURSOR_API_KEY")

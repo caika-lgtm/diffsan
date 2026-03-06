@@ -66,23 +66,29 @@ def build_agent_request(
     prior_digest: PriorDigest | None = None,
 ) -> AgentRequest:
     """Create the prompt and metadata for one agent attempt."""
-    schema = AgentReviewOutput.model_json_schema()
-    sections = [
-        "## Role",
-        _SYSTEM_TASK,
-        "",
-        "## Output Rules",
-        _JSON_RULES,
-        "",
-        "## Schema",
-        json.dumps(schema, indent=2, sort_keys=True),
-        "",
-        "## Review Guidance",
-        _review_guidance(config),
-        "",
-        "## Context Flags",
-        _context_flags(prepared),
-    ]
+    sections = ["## Role", _SYSTEM_TASK]
+    if config.agent.agent == "cursor":
+        schema = AgentReviewOutput.model_json_schema()
+        sections.extend(
+            [
+                "",
+                "## Output Rules",
+                _JSON_RULES,
+                "",
+                "## Schema",
+                json.dumps(schema, indent=2, sort_keys=True),
+            ]
+        )
+    sections.extend(
+        [
+            "",
+            "## Review Guidance",
+            _review_guidance(config),
+            "",
+            "## Context Flags",
+            _context_flags(prepared),
+        ]
+    )
     if prior_digest is not None:
         sections.extend(["", "## Prior Digest", _prior_digest_text(prior_digest)])
     sections.extend(["", "## Prepared Diff", prepared.prepared_diff])

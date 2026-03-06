@@ -25,6 +25,7 @@ from diffsan.contracts.models import (
     TimingMeta,
     TruncationReport,
 )
+from diffsan.core.agent_codex import run_codex_once
 from diffsan.core.agent_cursor import AgentAttempt, run_cursor_once
 from diffsan.core.config import load_config
 from diffsan.core.diff_provider import get_diff
@@ -61,6 +62,8 @@ RAW_OUTPUT_ARTIFACT_NAME: Final[str] = "agent.raw.txt"
 RAW_STDERR_ARTIFACT_NAME: Final[str] = "agent.stderr.txt"
 RAW_OUTPUT_ATTEMPT_ARTIFACT_TEMPLATE: Final[str] = "agent.raw.attempt{attempt}.txt"
 RAW_STDERR_ATTEMPT_ARTIFACT_TEMPLATE: Final[str] = "agent.stderr.attempt{attempt}.txt"
+CODEX_OUTPUT_SCHEMA_ARTIFACT_NAME: Final[str] = "codex-output-schema.json"
+CODEX_OUTPUT_ARTIFACT_NAME: Final[str] = "codex-output.json"
 REVIEW_ARTIFACT_NAME: Final[str] = "review.json"
 POST_PLAN_ARTIFACT_NAME: Final[str] = "post_plan.json"
 POST_RESULTS_ARTIFACT_NAME: Final[str] = "post_results.json"
@@ -301,12 +304,20 @@ def _run_pipeline(
         data={"path": PROMPT_ARTIFACT_NAME, "chars": len(request.prompt)},
     )
 
-    agent_review = _run_agent_with_retries(
-        request_prompt=request.prompt,
-        config=_config,
-        artifacts=_artifacts,
-        events=events,
-    )
+    if _config.agent.agent == "codex":
+        agent_review = _run_codex_single_attempt(
+            request_prompt=request.prompt,
+            config=_config,
+            artifacts=_artifacts,
+            events=events,
+        )
+    else:
+        agent_review = _run_agent_with_retries(
+            request_prompt=request.prompt,
+            config=_config,
+            artifacts=_artifacts,
+            events=events,
+        )
     review = ReviewOutput(
         summary_markdown=agent_review.summary_markdown,
         findings=agent_review.findings,
@@ -427,6 +438,45 @@ def _run_agent_with_retries(
         cause=(
             last_invalid_error.error_info.cause or last_invalid_error.error_info.message
         ),
+    )
+
+
+def _run_codex_single_attempt(
+    *,
+    request_prompt: str,
+    config: AppConfig,
+    artifacts: ArtifactStore,
+    events: EventLogger,
+) -> ValidatedAgentOutput:
+    attempt = run_codex_once(
+        request_prompt,
+        config,
+        workdir=artifacts.workdir,
+        schema_filename=CODEX_OUTPUT_SCHEMA_ARTIFACT_NAME,
+        output_filename=CODEX_OUTPUT_ARTIFACT_NAME,
+    )
+    _write_attempt_artifacts(
+        artifacts=artifacts,
+        attempt_number=1,
+        attempt=attempt,
+    )
+    events.emit(
+        EventName.AGENT_ATTEMPT,
+        data={
+            "attempt": 1,
+            "exit_code": attempt.exit_code,
+            "duration_ms": attempt.duration_ms,
+        },
+    )
+    artifacts.write_text(RAW_OUTPUT_ARTIFACT_NAME, attempt.raw_stdout)
+    if attempt.raw_stderr:
+        artifacts.write_text(RAW_STDERR_ARTIFACT_NAME, attempt.raw_stderr)
+
+    review = parse_and_validate(attempt.raw_stdout)
+    return ValidatedAgentOutput(
+        summary_markdown=review.summary_markdown,
+        findings=review.findings,
+        attempt=attempt,
     )
 
 

@@ -8,7 +8,7 @@
   - a **collapsible truncation** section (what was truncated/excluded)
 - **Inline discussions** (per-finding comments) positioned on diffs when possible.
 
-The first supported agent is **Cursor CLI** running headlessly. Future: Codex CLI support.
+Supported agents are **Cursor CLI** (default) and **Codex CLI**.
 
 ## Primary goals (priority order)
 
@@ -32,7 +32,7 @@ The first supported agent is **Cursor CLI** running headlessly. Future: Codex CL
 
 ## Constraints & assumptions
 
-- The CI runner runs Cursor CLI; code diffs will be sent to the internet by the agent.
+- The CI runner runs the selected agent CLI (Cursor or Codex); code diffs will be sent to the internet by that agent.
   - This is acceptable under enterprise/compliance oversight.
 - Must do **best-effort secret redaction** before prompting.
   - If secrets are detected, log high severity and (optionally) post a warning on the MR (without exposing the secret).
@@ -47,8 +47,8 @@ The first supported agent is **Cursor CLI** running headlessly. Future: Codex CL
 1. Identify MR and compute diff against target branch.
 2. Preprocess diff: ignore paths, prioritize code, truncate to limits, redact secrets.
 3. Decide if review should run (MVP: skip if auto-merge enabled).
-4. Build prompt and run Cursor headlessly.
-5. Validate output as strict JSON using Pydantic schema; retry/repair if needed.
+4. Build prompt and run the selected agent headlessly.
+5. Validate output as strict JSON using Pydantic schema; retry/repair is used for cursor only.
 6. Format summary + discussions.
 7. Post to GitLab (notes + discussions) with retries.
 8. Always store artifacts (prompt + raw output + validated JSON + events).
@@ -62,7 +62,7 @@ The first supported agent is **Cursor CLI** running headlessly. Future: Codex CL
 
 ## MVP v0 scope
 
-- Agent: Cursor CLI only
+- Agent: Cursor CLI by default, Codex CLI optional
 - GitLab posting: summary note + inline discussions (when position computable)
 - Skip: auto-merge true => silent skip (stdout only)
 - Fingerprint: sha256(raw diff)

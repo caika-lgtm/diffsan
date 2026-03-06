@@ -332,6 +332,137 @@ def test_run_milestone2_retry_exhaustion_sets_agent_output_invalid(
     assert run_payload["error"]["error_code"] == ErrorCode.AGENT_OUTPUT_INVALID
 
 
+def test_run_codex_single_attempt_succeeds_without_retry_loop(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Codex path should run a single attempt and skip retry repair flow."""
+    diff_bundle, prepared = _fixture_diff_and_prepared()
+    _patch_pipeline_dependencies(
+        monkeypatch,
+        diff_bundle=diff_bundle,
+        prepared=prepared,
+    )
+    monkeypatch.setenv("DIFFSAN_AGENT__AGENT", "codex")
+    review = AgentReviewOutput(summary_markdown="### Codex summary", findings=[])
+
+    def _run_codex_once(prompt: str, config, **kwargs) -> AgentAttempt:
+        _ = prompt, config, kwargs
+        return _agent_attempt(
+            raw_stdout='{"summary_markdown":"ok","findings":[]}',
+            raw_stderr="",
+            exit_code=0,
+            duration_ms=1,
+        )
+
+    def _parse_and_validate(raw: str) -> AgentReviewOutput:
+        _ = raw
+        return review
+
+    def _should_not_run_cursor(*_args, **_kwargs):
+        raise AssertionError("cursor path should not run")
+
+    monkeypatch.setattr(run_module, "run_codex_once", _run_codex_once)
+    monkeypatch.setattr(run_module, "run_cursor_once", _should_not_run_cursor)
+    monkeypatch.setattr(run_module, "parse_and_validate", _parse_and_validate)
+    monkeypatch.setattr(run_module, "print_summary_markdown", lambda _: None)
+
+    workdir = tmp_path / ".diffsan"
+    result = run_module.run(RunOptions(ci=True, dry_run=False, workdir=str(workdir)))
+
+    assert result.ok is True
+    assert (workdir / "agent.raw.attempt1.txt").exists()
+    assert not (workdir / "agent.raw.attempt2.txt").exists()
+    review_payload = json.loads((workdir / "review.json").read_text(encoding="utf-8"))
+    assert review_payload["meta"]["agent"] == "codex"
+
+
+def test_run_codex_invalid_output_fails_without_retry_loop(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Codex path should fail immediately on invalid output without retries."""
+    diff_bundle, prepared = _fixture_diff_and_prepared()
+    _patch_pipeline_dependencies(
+        monkeypatch,
+        diff_bundle=diff_bundle,
+        prepared=prepared,
+    )
+    monkeypatch.setenv("DIFFSAN_AGENT__AGENT", "codex")
+
+    def _run_codex_once(prompt: str, config, **kwargs) -> AgentAttempt:
+        _ = prompt, config, kwargs
+        return _agent_attempt(
+            raw_stdout="not-json",
+            raw_stderr="",
+            exit_code=0,
+            duration_ms=1,
+        )
+
+    def _should_not_run_cursor(*_args, **_kwargs):
+        raise AssertionError("cursor path should not run")
+
+    monkeypatch.setattr(run_module, "run_codex_once", _run_codex_once)
+    monkeypatch.setattr(run_module, "run_cursor_once", _should_not_run_cursor)
+    monkeypatch.setattr(run_module, "print_summary_markdown", lambda _: None)
+
+    workdir = tmp_path / ".diffsan"
+    result = run_module.run(RunOptions(ci=True, dry_run=False, workdir=str(workdir)))
+
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.error_code == ErrorCode.AGENT_OUTPUT_INVALID
+    assert (workdir / "agent.raw.attempt1.txt").exists()
+    assert not (workdir / "agent.raw.attempt2.txt").exists()
+
+
+def test_run_codex_single_attempt_writes_stderr_artifacts(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Codex path should persist per-attempt and canonical stderr artifacts."""
+    diff_bundle, prepared = _fixture_diff_and_prepared()
+    _patch_pipeline_dependencies(
+        monkeypatch,
+        diff_bundle=diff_bundle,
+        prepared=prepared,
+    )
+    monkeypatch.setenv("DIFFSAN_AGENT__AGENT", "codex")
+    review = AgentReviewOutput(summary_markdown="### Codex summary", findings=[])
+
+    def _run_codex_once(prompt: str, config, **kwargs) -> AgentAttempt:
+        _ = prompt, config, kwargs
+        return _agent_attempt(
+            raw_stdout='{"summary_markdown":"ok","findings":[]}',
+            raw_stderr="codex-stderr",
+            exit_code=0,
+            duration_ms=1,
+        )
+
+    def _parse_and_validate(raw: str) -> AgentReviewOutput:
+        _ = raw
+        return review
+
+    def _should_not_run_cursor(*_args, **_kwargs):
+        raise AssertionError("cursor path should not run")
+
+    monkeypatch.setattr(run_module, "run_codex_once", _run_codex_once)
+    monkeypatch.setattr(run_module, "run_cursor_once", _should_not_run_cursor)
+    monkeypatch.setattr(run_module, "parse_and_validate", _parse_and_validate)
+    monkeypatch.setattr(run_module, "print_summary_markdown", lambda _: None)
+
+    workdir = tmp_path / ".diffsan"
+    result = run_module.run(RunOptions(ci=True, dry_run=False, workdir=str(workdir)))
+
+    assert result.ok is True
+    assert (workdir / "agent.stderr.attempt1.txt").read_text(encoding="utf-8") == (
+        "codex-stderr"
+    )
+    assert (workdir / "agent.stderr.txt").read_text(encoding="utf-8") == (
+        "codex-stderr"
+    )
+
+
 def test_run_milestone3_post_failure_writes_results_and_fails(
     tmp_path: Path,
     monkeypatch,

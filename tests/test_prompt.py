@@ -142,6 +142,33 @@ def test_build_agent_request_without_prior_or_flags() -> None:
     assert "Extra skills to apply" not in request.prompt
 
 
+def test_build_agent_request_codex_omits_json_rules_and_schema() -> None:
+    """Codex prompts should omit cursor-specific JSON-only scaffolding."""
+    config = AppConfig(
+        agent=AgentConfig(agent="codex", verbosity="medium", skills=["security"]),
+    )
+    prepared = PreparedDiff(
+        prepared_diff="diff --git a/a.py b/a.py\n@@ -1 +1 @@\n-a\n+b\n",
+        truncation=TruncationReport(truncated=False),
+        redaction=RedactionReport(enabled=True, found=False),
+        ignored_paths=[],
+        included_paths=["a.py"],
+    )
+
+    request = build_agent_request(
+        config=config,
+        prepared=prepared,
+        fingerprint=Fingerprint(value="d" * 64),
+    )
+
+    assert "## Output Rules" not in request.prompt
+    assert "## Schema" not in request.prompt
+    assert "Return ONLY a JSON object." not in request.prompt
+    assert "## Review Guidance" in request.prompt
+    assert "## Prepared Diff" in request.prompt
+    assert request.meta.agent == "codex"
+
+
 def test_build_json_repair_prompt_includes_errors_and_excerpt() -> None:
     """Repair prompt contains strict instructions, errors, and bounded output."""
     config = AppConfig()
