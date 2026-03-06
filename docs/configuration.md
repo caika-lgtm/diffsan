@@ -11,6 +11,7 @@
 
 - CLI overrides
   - `--ci/--no-ci` overrides `mode.ci`
+  - `--agent <cursor|codex>` overrides `agent.agent`
   - `--config <path>` selects a specific TOML config file
 - Environment variables
   - All config env vars use `DIFFSAN_` prefix
@@ -96,6 +97,8 @@ export DIFFSAN_AGENT__SKILLS='["security","testing"]'
 - Allowed values:
   - `cursor` (default): unstructured output path with schema-in-prompt and JSON repair retries.
   - `codex`: structured output path using Codex output schema/output files and single-attempt validation.
+- CLI shortcut:
+  - `diffsan --ci --agent codex`
 
 ## Cursor Command Behavior
 

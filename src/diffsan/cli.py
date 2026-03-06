@@ -1,7 +1,7 @@
 """Command-line interface for diffsan."""
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import typer
 
@@ -38,6 +38,11 @@ def main(
         "--ci/--no-ci",
         help="Override CI mode.",
     ),
+    agent: Literal["cursor", "codex"] | None = typer.Option(
+        None,
+        "--agent",
+        help="Override agent backend (cursor or codex).",
+    ),
     dry_run: bool = typer.Option(
         False,
         "--dry-run",
@@ -61,6 +66,7 @@ def main(
     result = run(
         RunOptions(
             ci=ci,
+            agent=agent,
             dry_run=dry_run,
             config_file=str(config_file) if config_file is not None else None,
         )

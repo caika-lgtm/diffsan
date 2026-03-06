@@ -107,10 +107,12 @@ def test_load_config_cli_overrides_env(monkeypatch: pytest.MonkeyPatch) -> None:
     _clear_diffsan_env(monkeypatch)
     monkeypatch.setenv("DIFFSAN_MODE__CI", "true")
     monkeypatch.setenv("DIFFSAN_WORKDIR", ".from-env")
+    monkeypatch.setenv("DIFFSAN_AGENT__AGENT", "codex")
 
-    loaded = load_config(ci=False, workdir=".from-cli")
+    loaded = load_config(ci=False, agent="cursor", workdir=".from-cli")
 
     assert loaded.config.mode.ci is False
+    assert loaded.config.agent.agent == "cursor"
     assert loaded.config.workdir == ".from-cli"
 
 

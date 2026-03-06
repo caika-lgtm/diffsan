@@ -36,6 +36,7 @@ def test_cli_help() -> None:
     assert result.exit_code == 0
     plain = ANSI_OR_CSI_RE.sub("", result.stdout)
     assert re.search(r"--\s*dry\s*-\s*run", plain)
+    assert "--agent" in plain
 
 
 def test_cli_dry_run_writes_artifacts(
@@ -138,6 +139,26 @@ def test_cli_config_option_is_forwarded(tmp_path, monkeypatch) -> None:
     assert result.exit_code == 0
     options = captured["options"]
     assert getattr(options, "config_file", None) == str(tmp_path / "diffsan.toml")
+
+
+def test_cli_agent_option_is_forwarded(monkeypatch) -> None:
+    """CLI forwards --agent into RunOptions."""
+    captured: dict[str, object] = {}
+
+    def _fake_run(options):
+        captured["options"] = options
+        return SimpleNamespace(ok=True)
+
+    monkeypatch.setattr(cli_module, "run", _fake_run)
+
+    result = runner.invoke(
+        app,
+        ["--dry-run", "--agent", "codex"],
+    )
+
+    assert result.exit_code == 0
+    options = captured["options"]
+    assert getattr(options, "agent", None) == "codex"
 
 
 def test_run_workdir_creation_failure_falls_back_to_default(
