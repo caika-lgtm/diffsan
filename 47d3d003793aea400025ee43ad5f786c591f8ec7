@@ -1,0 +1,27 @@
+tests/test_diff_provider.py
+  abe713aaaf6c8d2e 48-49,57-58,104,108,118-121,128-134,151-156,161-210
+src/diffsan/core/diff_provider.py
+  abe713aaaf6c8d2e 80-85,114-115,123-143
+docs/design/05-test-strategy.md
+  abe713aaaf6c8d2e 119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "47d3d003793aea400025ee43ad5f786c591f8ec7",
+  "prompts": {
+    "abe713aaaf6c8d2e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cc155-fbf5-7052-bb61-eef2d978661e",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "kaian <caika@sea.com>",
+      "messages": [],
+      "total_additions": 109,
+      "total_deletions": 9,
+      "accepted_lines": 107,
+      "overriden_lines": 0
+    }
+  }
+}
