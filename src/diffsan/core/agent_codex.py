@@ -7,7 +7,7 @@ import shlex
 import subprocess
 from datetime import UTC, datetime
 from time import perf_counter
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from diffsan.contracts.errors import ErrorCode, ReviewerError
 from diffsan.contracts.models import AgentReviewOutput, AppConfig
@@ -85,11 +85,36 @@ def run_codex_once(
 
 def _write_output_schema(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    schema = AgentReviewOutput.model_json_schema()
+    schema = _to_codex_compatible_schema(AgentReviewOutput.model_json_schema())
     path.write_text(
         json.dumps(schema, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+
+
+def _to_codex_compatible_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """Normalize JSON Schema to strict object contracts accepted by Codex."""
+    normalized = _normalize_schema_node(schema)
+    if not isinstance(normalized, dict):  # pragma: no cover - defensive guard
+        raise ReviewerError(
+            "Codex output schema must be a JSON object",
+            error_code=ErrorCode.AGENT_EXEC_FAILED,
+        )
+    return normalized
+
+
+def _normalize_schema_node(node: Any) -> Any:
+    if isinstance(node, list):
+        return [_normalize_schema_node(item) for item in node]
+    if not isinstance(node, dict):
+        return node
+
+    normalized = {key: _normalize_schema_node(value) for key, value in node.items()}
+    properties = normalized.get("properties")
+    if isinstance(properties, dict):
+        normalized["required"] = list(properties.keys())
+        normalized["additionalProperties"] = False
+    return normalized
 
 
 def _read_output_file(path: Path) -> str:

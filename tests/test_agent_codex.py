@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -57,7 +58,14 @@ def test_run_codex_once_uses_default_command_and_reads_output(
     assert (tmp_path / "codex-output-schema.json").exists()
     assert (tmp_path / "codex-output.json").exists()
     schema_text = (tmp_path / "codex-output-schema.json").read_text(encoding="utf-8")
+    schema_payload = json.loads(schema_text)
     assert '"title": "AgentReviewOutput"' in schema_text
+    assert schema_payload["additionalProperties"] is False
+    assert set(schema_payload["required"]) == set(schema_payload["properties"].keys())
+    finding_schema = schema_payload["$defs"]["Finding"]
+    assert finding_schema["additionalProperties"] is False
+    assert set(finding_schema["required"]) == set(finding_schema["properties"].keys())
+    assert "finding_id" in finding_schema["required"]
     assert commands == [
         [
             "codex",
