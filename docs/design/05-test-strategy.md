@@ -116,7 +116,7 @@ Fixture guidance:
 **Unit tests**
 
 - Environment parsing for CI variables (MR iid, project id, branches).
-- Command construction for `git diff target...head`.
+- Command construction for `git fetch origin <target>` + `git diff target...head`.
 
 **Component tests**
 

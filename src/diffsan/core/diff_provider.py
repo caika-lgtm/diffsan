@@ -77,7 +77,12 @@ def _read_ci_context() -> CiDiffContext:
 
 
 def _run_git_diff(context: CiDiffContext) -> str:
-    candidates = [f"origin/{context.target_branch}", context.target_branch]
+    fetch_succeeded, fetch_error = _fetch_target_branch(context.target_branch)
+    candidates = [f"origin/{context.target_branch}"]
+    if fetch_succeeded:
+        candidates.append("FETCH_HEAD")
+    candidates.append(context.target_branch)
+
     last_error: ReviewerError | None = None
     for target_ref in candidates:
         command = ["git", "diff", "--no-color", f"{target_ref}...{context.head_sha}"]
@@ -106,11 +111,36 @@ def _run_git_diff(context: CiDiffContext) -> str:
             context={
                 "command": " ".join(command),
                 "returncode": result.returncode,
+                "fetch_succeeded": fetch_succeeded,
+                **({"fetch_error": fetch_error} if fetch_error else {}),
             },
         )
 
     assert last_error is not None
     raise last_error
+
+
+def _fetch_target_branch(target_branch: str) -> tuple[bool, str | None]:
+    """Fetch target branch so runner has an upstream ref for merge-base diffing."""
+    command = ["git", "fetch", "--no-tags", "origin", target_branch]
+    try:
+        result = subprocess.run(
+            command,
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+    except OSError as exc:
+        raise ReviewerError(
+            "Failed to execute git fetch",
+            error_code=ErrorCode.DIFF_FETCH_FAILED,
+            cause=exc,
+            context={"command": " ".join(command)},
+        ) from exc
+
+    if result.returncode == 0:
+        return True, None
+    return False, result.stderr.strip() or "unknown git error"
 
 
 def _parse_files(raw_diff: str) -> list[DiffFile]:

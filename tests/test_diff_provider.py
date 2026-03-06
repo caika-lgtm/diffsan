@@ -45,13 +45,18 @@ diff --git a/docs/readme.md b/docs/readme.md
         assert text is True
         assert capture_output is True
         commands.append(command)
+        if command[1] == "fetch":
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
         return subprocess.CompletedProcess(command, 0, stdout=raw_diff, stderr="")
 
     monkeypatch.setattr(subprocess, "run", _run)
 
     bundle = get_diff(ci=True)
 
-    assert commands == [["git", "diff", "--no-color", "origin/main...def456"]]
+    assert commands == [
+        ["git", "fetch", "--no-tags", "origin", "main"],
+        ["git", "diff", "--no-color", "origin/main...def456"],
+    ]
     assert bundle.source.ref.target_branch == "main"
     assert bundle.source.ref.source_branch == "feature"
     assert bundle.source.ref.base_sha == "abc123"
@@ -96,11 +101,11 @@ def test_get_diff_missing_head_sha(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_get_diff_falls_back_to_local_target_ref(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """If origin/<target> fails, provider retries with local target branch name."""
+    """If upstream refs fail, provider retries with the local target branch name."""
     monkeypatch.setenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "main")
     monkeypatch.setenv("CI_COMMIT_SHA", "deadbeef")
 
-    calls = {"count": 0}
+    commands: list[list[str]] = []
 
     def _run(
         command: list[str],
@@ -110,14 +115,22 @@ def test_get_diff_falls_back_to_local_target_ref(
         capture_output: bool,
     ) -> subprocess.CompletedProcess[str]:
         _ = check, text, capture_output
-        calls["count"] += 1
-        if calls["count"] == 1:
-            assert command[-1] == "origin/main...deadbeef"
+        commands.append(command)
+        if command[1] == "fetch":
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        if command[-1] == "origin/main...deadbeef":
             return subprocess.CompletedProcess(
                 command,
                 1,
                 stdout="",
                 stderr="missing origin ref",
+            )
+        if command[-1] == "FETCH_HEAD...deadbeef":
+            return subprocess.CompletedProcess(
+                command,
+                1,
+                stdout="",
+                stderr="bad fetch head",
             )
         assert command[-1] == "main...deadbeef"
         return subprocess.CompletedProcess(
@@ -135,9 +148,66 @@ def test_get_diff_falls_back_to_local_target_ref(
 
     bundle = get_diff(ci=True)
 
-    assert calls["count"] == 2
+    assert commands == [
+        ["git", "fetch", "--no-tags", "origin", "main"],
+        ["git", "diff", "--no-color", "origin/main...deadbeef"],
+        ["git", "diff", "--no-color", "FETCH_HEAD...deadbeef"],
+        ["git", "diff", "--no-color", "main...deadbeef"],
+    ]
     assert bundle.files[0].path == "bin.dat"
     assert bundle.files[0].is_binary is True
+
+
+def test_get_diff_continues_when_fetch_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Failed fetch should still allow local-target diff fallback."""
+    monkeypatch.setenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "main")
+    monkeypatch.setenv("CI_COMMIT_SHA", "deadbeef")
+
+    commands: list[list[str]] = []
+
+    def _run(
+        command: list[str],
+        *,
+        check: bool,
+        text: bool,
+        capture_output: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        _ = check, text, capture_output
+        commands.append(command)
+        if command[1] == "fetch":
+            return subprocess.CompletedProcess(
+                command,
+                1,
+                stdout="",
+                stderr="network down",
+            )
+        if command[-1] == "origin/main...deadbeef":
+            return subprocess.CompletedProcess(
+                command,
+                1,
+                stdout="",
+                stderr="missing origin ref",
+            )
+        assert command[-1] == "main...deadbeef"
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout="diff --git a/app.py b/app.py\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(subprocess, "run", _run)
+
+    bundle = get_diff(ci=True)
+
+    assert commands == [
+        ["git", "fetch", "--no-tags", "origin", "main"],
+        ["git", "diff", "--no-color", "origin/main...deadbeef"],
+        ["git", "diff", "--no-color", "main...deadbeef"],
+    ]
+    assert bundle.files[0].path == "app.py"
 
 
 def test_get_diff_wraps_subprocess_oserror(monkeypatch: pytest.MonkeyPatch) -> None:
