@@ -155,3 +155,19 @@ When changing a decision, add a new entry (do not rewrite history).
 **Decision:** Add `skip_on_same_fingerprint=true` by default; skip when current diff fingerprint equals latest prior diffsan summary fingerprint.
 **Why:** Reduce duplicate reviews/spam on re-runs with unchanged diff content.
 **Implications:** Summary notes include a machine-readable fingerprint marker; skip logic compares current fingerprint against latest prior note context.
+
+---
+
+## D020 — Agent support: Cursor default plus Codex structured path
+
+**Decision:** Support both Cursor CLI and Codex CLI, with Cursor as default.
+**Why:** Keep backward compatibility while enabling a structured-output backend.
+**Implications:** Config must select agent kind explicitly (`cursor` or `codex`); orchestrator dispatches to agent-specific runners.
+
+---
+
+## D021 — Prompting and retry policy are agent-specific
+
+**Decision:** Keep schema-in-prompt + JSON repair retries for Cursor, but omit those sections and retries for Codex.
+**Why:** Cursor is unstructured and needs repair loops; Codex supports schema-constrained output files.
+**Implications:** Prompt builder and run pipeline branch by agent; output still passes through shared `parse_and_validate` before posting.

@@ -299,3 +299,63 @@ def test_load_config_cli_note_timezone_override(
     loaded = load_config(note_timezone="UTC")
 
     assert loaded.config.note_timezone == "UTC"
+
+
+def test_load_config_supports_codex_agent_and_command_from_file(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / DEFAULT_CONFIG_FILE).write_text(
+        "\n".join(
+            [
+                "[agent]",
+                'agent = "codex"',
+                'codex_command = "codex exec --model gpt-5"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = load_config()
+
+    assert loaded.config.agent.agent == "codex"
+    assert loaded.config.agent.codex_command == "codex exec --model gpt-5"
+
+
+def test_load_config_supports_codex_agent_overrides_from_env(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DIFFSAN_AGENT__AGENT", "codex")
+    monkeypatch.setenv("DIFFSAN_AGENT__CODEX_COMMAND", "codex exec --model gpt-5")
+
+    loaded = load_config()
+
+    assert loaded.config.agent.agent == "codex"
+    assert loaded.config.agent.codex_command == "codex exec --model gpt-5"
+
+
+def test_load_config_errors_for_invalid_agent_value(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / DEFAULT_CONFIG_FILE).write_text(
+        "\n".join(
+            [
+                "[agent]",
+                'agent = "invalid-agent"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ReviewerError) as exc_info:
+        load_config()
+
+    assert exc_info.value.error_info.error_code == ErrorCode.CONFIG_PARSE_ERROR

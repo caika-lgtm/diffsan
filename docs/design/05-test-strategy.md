@@ -43,7 +43,7 @@ These cover deterministic pure logic and schema validation. They should run in <
 
 These test modules with controlled dependencies:
 
-- Agent runner with a fake subprocess runner (Cursor output simulation)
+- Agent runners with fake subprocess execution (Cursor and Codex paths)
 - GitLab client with a fake HTTP server or mocked transport
 - Orchestrator pipeline with faked agent + faked GitLab client, verifying artifacts/events
 
@@ -53,7 +53,7 @@ These provide confidence in interactions and error handling without calling exte
 
 A single real run against:
 
-- Cursor CLI (enterprise)
+- selected agent CLI (Cursor or Codex)
 - GitLab API posting
 
 This is expensive; keep it **manual** or run nightly/scheduled to avoid flakiness and cost.
@@ -198,12 +198,14 @@ Fixture guidance:
 **Unit tests**
 
 - Prompt includes:
-  - schema instruction (“JSON only”)
+  - schema instruction (“JSON only”) for cursor only
   - prepared diff content
   - truncation disclosure + what was truncated (or instruction to include it)
   - redaction flag (if secrets found)
   - prior digest + “avoid repeating” instruction
   - verbosity + skills if configured
+
+- For codex prompts, assert schema and hard JSON-only sections are omitted.
 
 **Safety tests**
 
@@ -232,6 +234,16 @@ Fixture guidance:
 - Invalid JSON fixture raises parse error with helpful context.
 - JSON missing required fields fails Pydantic validation.
 - If you support stripping code fences: test mixed markdown+json fixture behavior (decide policy and test it).
+
+---
+
+### `core/agent_codex.py`
+
+**Component tests with fake subprocess**
+
+- Default command writes schema/output files and reads structured payload from `--output-last-message`.
+- Custom command behavior preserves user flags while wiring output schema/message flags.
+- Missing/empty output file and non-zero exit map to `AGENT_EXEC_FAILED`.
 
 ---
 
@@ -276,7 +288,9 @@ Fixture guidance:
 - Happy path with fake agent + fake gitlab:
   - writes artifacts: `prompt.txt`, `agent.raw.txt`, `review.json`, `post_plan.json`, `post_results.json`, `events.jsonl`, `run.json`
   - `run.json.ok == true`
-- Failure path (agent invalid after retries):
+- Failure path:
+  - cursor invalid after retries -> structured `AGENT_OUTPUT_INVALID`
+  - codex invalid output on single attempt -> structured `AGENT_OUTPUT_INVALID`
   - still writes: `prompt.txt`, `agent.raw.txt`, `run.json` with structured error
   - exits non-zero (test via calling `run()` directly or using `pytest` to capture SystemExit)
 - Skip path:
@@ -328,7 +342,7 @@ Keep smoke tests out of the default pipeline or make them `workflow_dispatch` on
 When you add:
 
 - New skip rules: add unit tests in `test_skip.py` and extend fixtures.
-- New agent (Codex CLI): add a parallel fake runner and reuse parse/validate + format tests.
+- New agent (beyond Cursor/Codex): add a parallel fake runner and reuse parse/validate + format tests.
 - GitHub support: replicate `core/gitlab.py` tests for a `core/github.py` module and keep contracts stable.
 
 ---
