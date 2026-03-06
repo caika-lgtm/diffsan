@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Final, cast
+from typing import Final, Literal, cast
 
 from diffsan import __version__
 from diffsan.contracts.errors import ErrorCode, ErrorInfo, ReviewerError
@@ -74,6 +74,7 @@ class RunOptions:
     """Runtime overrides provided by the CLI entrypoint."""
 
     ci: bool | None = None
+    agent: Literal["cursor", "codex"] | None = None
     dry_run: bool = False
     workdir: str | None = None
     note_timezone: str | None = None
@@ -103,6 +104,7 @@ def run(options: RunOptions) -> RunResult:
     try:
         loaded_config = load_config(
             ci=options.ci,
+            agent=options.agent,
             workdir=options.workdir,
             note_timezone=options.note_timezone,
             config_file=options.config_file,

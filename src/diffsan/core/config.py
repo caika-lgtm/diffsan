@@ -5,7 +5,7 @@ from __future__ import annotations
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -67,6 +67,7 @@ class _EnvConfigOverrides(BaseSettings):
 def load_config(
     *,
     ci: bool | None = None,
+    agent: Literal["cursor", "codex"] | None = None,
     workdir: str | None = None,
     note_timezone: str | None = None,
     config_file: str | None = None,
@@ -78,6 +79,7 @@ def load_config(
     env_overrides = _load_env_overrides()
     cli_overrides = _build_cli_overrides(
         ci=ci,
+        agent=agent,
         workdir=workdir,
         note_timezone=note_timezone,
     )
@@ -198,6 +200,7 @@ def _load_env_overrides() -> dict[str, Any]:
 def _build_cli_overrides(
     *,
     ci: bool | None,
+    agent: Literal["cursor", "codex"] | None,
     workdir: str | None,
     note_timezone: str | None,
 ) -> dict[str, Any]:
@@ -208,6 +211,8 @@ def _build_cli_overrides(
     overrides: dict[str, Any] = {}
     if mode_overrides:
         overrides["mode"] = mode_overrides
+    if agent is not None:
+        overrides["agent"] = {"agent": agent}
     if workdir is not None:
         overrides["workdir"] = workdir
     if note_timezone is not None:
