@@ -11,8 +11,8 @@ Agents and humans should treat these docs as the **source of truth** for require
 4. Build a prompt and run an AI agent headlessly (Cursor default, Codex optional).
 5. Validate the agent output as strict JSON (Pydantic schema), with retry/repair for unstructured agents.
 6. Format and post:
-   - a **summary MR note** (markdown) with collapsible metadata and truncation details
-   - **inline discussions** for findings (when a valid position can be computed)
+    - a **summary MR note** (markdown) with collapsible metadata and truncation details
+    - **inline discussions** for findings (when a valid position can be computed)
 7. Always store prompt/output artifacts and structured events.
 
 ## Non-goals
@@ -57,8 +57,8 @@ If you are working on…
 ## Change rules (important)
 
 - If you change any contract (schemas, artifacts, error codes, event names):
-  1. Update `02-contracts-and-schemas.md`
-  2. Update `src/diffsan/contracts/models.py` and `src/diffsan/contracts/errors.py` (once implemented)
+    1. Update `02-contracts-and-schemas.md`
+    2. Update `src/diffsan/contracts/models.py` and `src/diffsan/contracts/errors.py` (once implemented)
 
 ## Quick invariants (do not violate)
 

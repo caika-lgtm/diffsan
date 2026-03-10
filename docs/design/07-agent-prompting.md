@@ -4,15 +4,15 @@ This document defines how `diffsan` builds prompts and handles agent output for 
 
 - The final agent payload must validate against `AgentReviewOutput`.
 - Avoid spam:
-  - verbosity is configurable
-  - inject compact prior digest
-  - instruct to avoid repeating prior findings
+    - verbosity is configurable
+    - inject compact prior digest
+    - instruct to avoid repeating prior findings
 - Make truncation explicit:
-  - if truncated, agent must clearly disclose partial review in the summary
-  - include a collapsible section listing what was truncated
+    - if truncated, agent must clearly disclose partial review in the summary
+    - include a collapsible section listing what was truncated
 - Protect secrets:
-  - diff must already be redacted before prompting
-  - if redaction found, agent should mention that redaction occurred (without including any secret)
+    - diff must already be redacted before prompting
+    - if redaction found, agent should mention that redaction occurred (without including any secret)
 
 ---
 
@@ -29,26 +29,26 @@ This document defines how `diffsan` builds prompts and handles agent output for 
 ### Prompt sections (recommended order)
 
 1. **Role and task**
-   - “You are diffsan, an AI code reviewer…”
+    - “You are diffsan, an AI code reviewer…”
 2. **Output rules** (Cursor only)
-   - “Return ONLY valid JSON. No markdown, no code fences, no commentary.”
-   - “Must match the schema exactly.”
+    - “Return ONLY valid JSON. No markdown, no code fences, no commentary.”
+    - “Must match the schema exactly.”
 3. **Schema** (Cursor only)
-   - Embed the `AgentReviewOutput` schema description (field names/types and allowed enums)
+    - Embed the `AgentReviewOutput` schema description (field names/types and allowed enums)
 4. **Review instructions**
-   - Prioritize correctness/security first
-   - Keep comments concise and actionable
-   - Avoid repeating prior findings
-   - Use line ranges; reference file paths exactly
+    - Prioritize correctness/security first
+    - Keep comments concise and actionable
+    - Avoid repeating prior findings
+    - Use line ranges; reference file paths exactly
 5. **Context flags**
-   - Truncation: mention and require disclosure in summary
-   - Redaction: mention redaction occurred if found
+    - Truncation: mention and require disclosure in summary
+    - Redaction: mention redaction occurred if found
 6. **Prior digest**
-   - Provide minimal digest and explicit instruction:
+    - Provide minimal digest and explicit instruction:
      - “Do NOT repeat these unless the code changed substantially.”
      - “Do NOT re-assert unresolved issues.”
 7. **Prepared diff**
-   - Include diff text
+    - Include diff text
 
 ---
 
@@ -66,7 +66,7 @@ This document defines how `diffsan` builds prompts and handles agent output for 
 ### Recommended guardrails
 
 - Provide an explicit “example structure” (not too large), e.g.:
-  - top-level fields: `summary_markdown`, `findings`
+    - top-level fields: `summary_markdown`, `findings`
 - Enumerate allowed `severity` and `category` values.
 - Require numeric `line_start`/`line_end` (integers).
 
@@ -78,12 +78,12 @@ Cursor CLI does not guarantee structured output. `diffsan` must:
 
 1. Capture raw stdout/stderr.
 2. Attempt to parse JSON strictly.
-   - If using `cursor-agent --output-format json`, unwrap the outer envelope and
+    - If using `cursor-agent --output-format json`, unwrap the outer envelope and
      parse the nested `result` JSON string before validating against
      `AgentReviewOutput`.
-   - If output has leading non-JSON preamble text, recover by parsing from the
+    - If output has leading non-JSON preamble text, recover by parsing from the
      first valid top-level JSON object start.
-   - Tolerate non-JSON trailing text after that recovered object.
+    - Tolerate non-JSON trailing text after that recovered object.
 3. Validate with Pydantic.
 4. If parsing/validation fails, retry with a repair prompt.
 
@@ -112,11 +112,11 @@ Execution defaults for Codex CLI in diffsan:
 
 - Maximum attempts: `max_json_retries` (default 3)
 - Each attempt writes its output artifact:
-  - `agent.raw.attempt1.txt`, `agent.raw.attempt2.txt`, etc.
+    - `agent.raw.attempt1.txt`, `agent.raw.attempt2.txt`, etc.
 - If all attempts fail:
-  - exit non-zero with `AGENT_OUTPUT_INVALID`
-  - do not post invalid output to GitLab
-  - keep artifacts for debugging
+    - exit non-zero with `AGENT_OUTPUT_INVALID`
+    - do not post invalid output to GitLab
+    - keep artifacts for debugging
 
 ### Repair prompt template (recommended)
 
@@ -156,8 +156,8 @@ Here is your previous output:
 ### How to generate a concise validation error summary
 
 - For Pydantic errors, include:
-  - JSON path (e.g., `findings.0.line_start`)
-  - message (e.g., `field required`)
+    - JSON path (e.g., `findings.0.line_start`)
+    - message (e.g., `field required`)
 - Limit to the first N errors (e.g., 10) to keep prompt short.
 
 ---
@@ -167,11 +167,11 @@ Here is your previous output:
 When truncation occurred:
 
 - Include a mandatory instruction:
-  - “In `summary_markdown`, clearly state this is a **partial review** due to truncation.”
+    - “In `summary_markdown`, clearly state this is a **partial review** due to truncation.”
 - Provide agent the truncation stats:
-  - original vs final chars/files, and a short list of dropped items
+    - original vs final chars/files, and a short list of dropped items
 - Require a collapsible section in summary, e.g.:
-  - `<details><summary>Truncation</summary> ... </details>`
+    - `<details><summary>Truncation</summary> ... </details>`
 
 ---
 
@@ -180,10 +180,10 @@ When truncation occurred:
 When redaction found:
 
 - The prompt should say:
-  - “Some secrets-like strings were redacted as `[REDACTED]`.”
-  - “Do not attempt to guess the secret.”
+    - “Some secrets-like strings were redacted as `[REDACTED]`.”
+    - “Do not attempt to guess the secret.”
 - The summary should contain a brief note:
-  - “Redaction occurred; review includes redacted content.”
+    - “Redaction occurred; review includes redacted content.”
 
 Additionally, diffsan itself may post a separate warning note to GitLab (without secret details).
 
@@ -212,9 +212,9 @@ Skills are optional prompt additions. In MVP:
 - `skills` is a list of short identifiers.
 - diffsan maps skills to small prompt snippets (stored under `resources/prompts/skills/` later).
 - Example skills:
-  - `security`: focus on injection, auth, secrets, SSRF, etc.
-  - `python`: focus on typing, exceptions, idioms
-  - `testing`: focus on test coverage and cases
+    - `security`: focus on injection, auth, secrets, SSRF, etc.
+    - `python`: focus on typing, exceptions, idioms
+    - `testing`: focus on test coverage and cases
 
 Skill text must be short to avoid prompt bloat.
 
@@ -225,9 +225,9 @@ Skill text must be short to avoid prompt bloat.
 - Each finding must be actionable and point to a specific file + line range.
 - Suggested patch is optional; include only when confident.
 - Use `severity` consistently:
-  - `critical/high`: security vulnerabilities, data loss, auth bypass, crashes
-  - `medium`: likely bugs, race conditions, incorrect edge cases
-  - `low/info`: minor improvements, style, cleanup
+    - `critical/high`: security vulnerabilities, data loss, auth bypass, crashes
+    - `medium`: likely bugs, race conditions, incorrect edge cases
+    - `low/info`: minor improvements, style, cleanup
 
 ---
 

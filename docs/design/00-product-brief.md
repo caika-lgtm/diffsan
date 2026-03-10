@@ -3,9 +3,9 @@
 `diffsan` is a Python CLI tool intended to run primarily in **GitLab CI** on **Merge Request pipelines**. It performs an AI-assisted review of the MR diff against the target branch, then posts review feedback back to the MR as:
 
 - A **summary note** (markdown) that includes:
-  - high-level summary of issues
-  - a **collapsible metadata** section (fingerprint, timings, token usage, agent info, truncation/redaction flags)
-  - a **collapsible truncation** section (what was truncated/excluded)
+    - high-level summary of issues
+    - a **collapsible metadata** section (fingerprint, timings, token usage, agent info, truncation/redaction flags)
+    - a **collapsible truncation** section (what was truncated/excluded)
 - **Inline discussions** (per-finding comments) positioned on diffs when possible.
 
 Supported agents are **Cursor CLI** (default) and **Codex CLI**.
@@ -33,14 +33,14 @@ Supported agents are **Cursor CLI** (default) and **Codex CLI**.
 ## Constraints & assumptions
 
 - The CI runner runs the selected agent CLI (Cursor or Codex); code diffs will be sent to the internet by that agent.
-  - This is acceptable under enterprise/compliance oversight.
+    - This is acceptable under enterprise/compliance oversight.
 - Must do **best-effort secret redaction** before prompting.
-  - If secrets are detected, log high severity and (optionally) post a warning on the MR (without exposing the secret).
+    - If secrets are detected, log high severity and (optionally) post a warning on the MR (without exposing the secret).
 - Must support multiple config sources with precedence:
-  - repo config file
-  - env/CI variables
-  - CLI flags
-  - sensible defaults with minimal setup (opinionated tool)
+    - repo config file
+    - env/CI variables
+    - CLI flags
+    - sensible defaults with minimal setup (opinionated tool)
 
 ## Typical CI flow
 

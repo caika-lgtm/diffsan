@@ -2,54 +2,54 @@
 
 Thank you for your interest in contributing to diffsan!
 
+Before making behavioral changes, start with the design docs index at `docs/design/README.md`. That is the source of truth for product scope, architecture, contracts, and testing expectations.
+
 ## Development Setup
 
 1. Fork and clone the repository:
 
-   ```bash
-   git clone https://github.com/caika-lgtm/diffsan.git
-   cd diffsan
-   ```
+    ```bash
+    git clone https://github.com/caika-lgtm/diffsan.git
+    cd diffsan
+    ```
 
-2. Install dependencies using uv:
+2. Install dependencies:
 
-   ```bash
-   uv sync --group dev
-   ```
+    ```bash
+    make install
+    ```
 
-3. Install prek hooks:
+3. Optionally install prek hooks:
 
-   ```bash
-   prek install
-   ```
+    ```bash
+    uv run prek install
+    ```
 
 ## Making Changes
 
 1. Create a new branch for your feature or bugfix:
 
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
+    ```bash
+    git checkout -b feature/your-feature-name
+    ```
 
 2. Make your changes and ensure tests pass:
 
-   ```bash
-   uv run pytest
-   ```
+    ```bash
+    make test
+    ```
 
 3. Ensure code quality:
 
-   ```bash
-   uv run ruff check .
-   uv run ruff format .
-   uv run ty check
-   ```
+    ```bash
+    make verify
+    ```
 
 4. Commit your changes using [conventional commits](https://www.conventionalcommits.org/):
 
-   ```bash
-   git commit -m "feat: add new feature"
-   ```
+    ```bash
+    git commit -m "feat: add new feature"
+    ```
 
 ## Commit Message Format
 
@@ -66,7 +66,7 @@ We use [Conventional Commits](https://www.conventionalcommits.org/). Here are so
 
 1. Update documentation if needed
 2. Add tests for new functionality
-3. Ensure all tests pass
+3. Ensure `make verify` and `make test` pass
 4. Submit a pull request with a clear description
 
 ## Code Style
@@ -75,3 +75,5 @@ We use [Conventional Commits](https://www.conventionalcommits.org/). Here are so
 - We use [ty](https://docs.astral.sh/ty/) for type checking
 - All code should be properly typed
 - Write docstrings for public functions and classes
+- Keep changes small and composable
+- Update docs when behavior or configuration changes

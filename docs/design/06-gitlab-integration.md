@@ -20,10 +20,10 @@ This document describes how `diffsan` integrates with GitLab in **CI Merge Reque
 **Required scopes/permissions**
 
 - Must be able to:
-  - read MR metadata
-  - list MR notes
-  - create MR notes
-  - create MR discussions
+    - read MR metadata
+    - list MR notes
+    - create MR notes
+    - create MR discussions
 - Exact scopes vary by GitLab setup; ensure token is allowed for MR notes/discussions.
 
 **Failure modes**
@@ -71,9 +71,9 @@ In CI, the runner usually has a checkout and can run `git diff`.
 **Strategy**
 
 1. Ensure target branch refs exist locally:
-   - `git fetch origin <target_branch> --depth=...`
+    - `git fetch origin <target_branch> --depth=...`
 2. Compute diff:
-   - `git diff origin/<target_branch>...<head_sha>`
+    - `git diff origin/<target_branch>...<head_sha>`
 
 **Pros**
 
@@ -117,16 +117,16 @@ Use GitLab API to fetch MR details and read the field(s) that indicate:
 **Implementation notes**
 
 - GitLab fields differ by version; implement a small compatibility layer:
-  - check presence of known fields (e.g., `merge_when_pipeline_succeeds`, `auto_merge_enabled`, `merge_status`, etc.)
-  - if uncertain, emit event `skip.auto_merge.unknown` and **do not skip** (fail-open for MVP).
+    - check presence of known fields (e.g., `merge_when_pipeline_succeeds`, `auto_merge_enabled`, `merge_status`, etc.)
+    - if uncertain, emit event `skip.auto_merge.unknown` and **do not skip** (fail-open for MVP).
 - If `skip_on_auto_merge=true` and auto-merge detected:
-  - `SkipDecision.should_skip = true`
-  - do not post to MR
-  - still write artifacts that were already produced (at least `events.jsonl` + `run.json`)
+    - `SkipDecision.should_skip = true`
+    - do not post to MR
+    - still write artifacts that were already produced (at least `events.jsonl` + `run.json`)
 - If `skip_on_same_fingerprint=true` and latest prior fingerprint equals current fingerprint:
-  - `SkipDecision.should_skip = true`
-  - do not post to MR
-  - still write artifacts that were already produced (at least `events.jsonl` + `run.json`)
+    - `SkipDecision.should_skip = true`
+    - do not post to MR
+    - still write artifacts that were already produced (at least `events.jsonl` + `run.json`)
 
 ---
 
@@ -141,7 +141,7 @@ Post a single MR note containing:
 - a collapsible `<details>` metadata section (fingerprint, agent info, timings, token usage if available, flags)
 - include total findings count and MR pipeline id (when available from CI)
 - human-readable timestamps and duration in metadata
-  - timezone is configurable via config key `note_timezone` (or env `DIFFSAN_NOTE_TIMEZONE`), default is the runner's local timezone
+    - timezone is configurable via config key `note_timezone` (or env `DIFFSAN_NOTE_TIMEZONE`), default is the runner's local timezone
 - a collapsible truncation section describing what was omitted (only when truncation occurred)
 - if secrets were detected during scan, include a warning section (never include raw secret)
 - if posting errors occurred during the run (for example invalid discussion positions), include a collapsible "Run errors" section with brief, non-secret error summaries
@@ -149,18 +149,18 @@ Post a single MR note containing:
 ### Endpoint (typical)
 
 - `POST /api/v4/projects/:project_id/merge_requests/:mr_iid/notes`
-  - body: `{ "body": "<markdown>" }`
+    - body: `{ "body": "<markdown>" }`
 
 ### Tagging (to locate prior notes)
 
 To find previous diffsan notes, include a small marker:
 
 - e.g. a line near the top or bottom:
-  - `<!-- diffsan:ai-reviewer -->`
+    - `<!-- diffsan:ai-reviewer -->`
 - include fingerprint marker for fast re-run detection:
-  - `<!-- diffsan:fingerprint:sha256:<value> -->`
+    - `<!-- diffsan:fingerprint:sha256:<value> -->`
 - include a machine-readable digest marker for future runs:
-  - `<!-- diffsan:prior_digest:<base64-json> -->`
+    - `<!-- diffsan:prior_digest:<base64-json> -->`
 - or a consistent heading prefix.
 
 Config:
@@ -174,7 +174,7 @@ Config:
 ### Endpoint (typical)
 
 - `POST /api/v4/projects/:project_id/merge_requests/:mr_iid/discussions`
-  - body: `{ "body": "...", "position": {...} }`
+    - body: `{ "body": "...", "position": {...} }`
 
 ### Position computation (important)
 
@@ -189,12 +189,12 @@ GitLab requires a **position** object referencing:
 
 - Prefer positions on **new lines** (`new_path` + `new_line`) where possible.
 - When a finding points to unchanged lines or cannot be mapped reliably:
-  - do **not** post a discussion
-  - include it under an “Unpositioned findings” section in the summary note
-  - render each entry as a collapsible block where:
+    - do **not** post a discussion
+    - include it under an “Unpositioned findings” section in the summary note
+    - render each entry as a collapsible block where:
     - `<summary>` includes `**[category/severity]**` and `path:line_start-line_end`
     - `<details>` body contains the full finding `body_markdown` (no truncation)
-  - still keep it in `review.json` artifacts
+    - still keep it in `review.json` artifacts
 
 This “degrade gracefully” approach avoids flakey 400 errors from invalid positions.
 
@@ -215,15 +215,15 @@ If GitLab returns `400` with message like “position is invalid”:
 ### How to locate prior context
 
 - list MR notes and search for:
-  - `summary_note_tag` marker (comment tag or heading)
-  - optionally ensure author is the bot user (if accessible)
+    - `summary_note_tag` marker (comment tag or heading)
+    - optionally ensure author is the bot user (if accessible)
 - list MR discussions and collect inline comment bodies (both resolved and unresolved)
 
 ### What to parse out
 
 - fingerprint: `sha256:<value>`
 - compact digest: a short list of prior findings
-  - `finding_id`, `title`, `severity`, `path`, `line range`
+    - `finding_id`, `title`, `severity`, `path`, `line range`
 - all tagged prior summary markdown blocks
 - all prior inline discussion comments (resolved and unresolved)
 - preferred source is the embedded digest marker payload; if absent, fall back to
@@ -233,8 +233,8 @@ If GitLab returns `400` with message like “position is invalid”:
 **Robustness**
 
 - Parsing should be tolerant:
-  - ignore malformed sections
-  - if fingerprint is missing, proceed without “already reviewed” context
+    - ignore malformed sections
+    - if fingerprint is missing, proceed without “already reviewed” context
 - If discussions cannot be fetched, continue with note-only prior context.
 
 ---
@@ -264,7 +264,7 @@ Do not retry:
 ### Backoff strategy (MVP)
 
 - Exponential backoff with jitter (small):
-  - e.g. 1s, 2s, 4s (+ random 0–250ms)
+    - e.g. 1s, 2s, 4s (+ random 0–250ms)
 - Log each retry attempt as a structured event.
 
 ---
@@ -274,11 +274,11 @@ Do not retry:
 The following artifacts are written for debuggability:
 
 - `post_plan.json`
-  - the exact payloads intended for note/discussion posting (minus secrets)
+    - the exact payloads intended for note/discussion posting (minus secrets)
 - `post_results.json`
-  - per-item results including HTTP status codes and any error messages
+    - per-item results including HTTP status codes and any error messages
 - `events.jsonl`
-  - `gitlab.post.summary` / `gitlab.post.discussion` events with success/failure
+    - `gitlab.post.summary` / `gitlab.post.discussion` events with success/failure
 
 > Never store raw secrets. If GitLab returns error bodies that might echo request content, store only what’s necessary.
 
@@ -313,9 +313,9 @@ The following artifacts are written for debuggability:
 ### Invalid position response handling
 
 - HTTP `400` with “position is invalid”
-  - record in `post_results.json`
-  - continue posting others
-  - exit non-zero at end
+    - record in `post_results.json`
+    - continue posting others
+    - exit non-zero at end
 
 ---
 
@@ -324,6 +324,6 @@ The following artifacts are written for debuggability:
 - Support `CI_JOB_TOKEN` (when permitted) or OAuth flows
 - True idempotency: update/replace existing summary note instead of creating new
 - Rich skip rules:
-  - draft/WIP, author == bot, only-docs changes, already-reviewed fingerprint, merge train, etc.
+    - draft/WIP, author == bot, only-docs changes, already-reviewed fingerprint, merge train, etc.
 
 - GitHub support via separate adapter layer

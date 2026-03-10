@@ -31,12 +31,12 @@ The monolith is structured as a pipeline of modules with contracts defined in `0
 4. `compute_fingerprint(raw_diff)` -> `Fingerprint`
 5. `get_prior_digest()` -> `PriorDigest | None` + write `prior_digest.json`
 6. `decide_skip()` -> `SkipDecision`
-   - if skip: write `run.json` ok=true with skip reason; exit 0
+    - if skip: write `run.json` ok=true with skip reason; exit 0
 7. `build_agent_request()` -> `AgentRequest` + write `prompt.txt`
 8. `run_agent()` -> `AgentRawResponse` + `ReviewOutput`
-   - cursor: retry/repair loop (`run_agent_with_retries()`)
-   - codex: single-attempt structured run (`run_codex_once()`)
-   - write `agent.raw.txt` (and optionally per-attempt outputs)
+    - cursor: retry/repair loop (`run_agent_with_retries()`)
+    - codex: single-attempt structured run (`run_codex_once()`)
+    - write `agent.raw.txt` (and optionally per-attempt outputs)
 9. `validate_review()` -> `ReviewOutput` + write `review.json`
 10. `build_post_plan()` -> `PostPlan` + write `post_plan.json`
 11. `post_to_gitlab()` -> `PostResults` + write `post_results.json`
