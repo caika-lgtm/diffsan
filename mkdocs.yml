@@ -61,5 +61,14 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Configuration: configuration.md
-  - API Reference: api.md
   - Contributing: contributing.md
+  - Design:
+      - Overview: design/README.md
+      - Product Brief: design/00-product-brief.md
+      - Architecture: design/01-architecture.md
+      - Contracts and Schemas: design/02-contracts-and-schemas.md
+      - Artifacts and Events: design/03-artifacts-and-events.md
+      - Test Strategy: design/05-test-strategy.md
+      - GitLab Integration: design/06-gitlab-integration.md
+      - Agent Prompting: design/07-agent-prompting.md
+      - Decision Log: design/08-decision-log.md

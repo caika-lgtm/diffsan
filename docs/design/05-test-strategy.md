@@ -136,15 +136,15 @@ Fixture guidance:
 - Ignore globs exclude expected paths.
 - Prioritization sorts code files ahead of docs.
 - Truncation obeys:
-  - `max_diff_chars`
-  - `max_files`
-  - `max_hunks_per_file`
+    - `max_diff_chars`
+    - `max_files`
+    - `max_hunks_per_file`
 - Truncation report contains:
-  - `truncated`, counts, and at least one `TruncationItem` when truncated.
+    - `truncated`, counts, and at least one `TruncationItem` when truncated.
 - Secret scanning/redaction:
-  - matches generate `RedactionReport.found == true`
-  - secrets replaced with `[REDACTED]`
-  - no raw secret ends up in report, events, or stdout (only hash/length)
+    - matches generate `RedactionReport.found == true`
+    - secrets replaced with `[REDACTED]`
+    - no raw secret ends up in report, events, or stdout (only hash/length)
 
 **Edge cases**
 
@@ -168,10 +168,10 @@ Fixture guidance:
 **Component tests**
 
 - Given fixture MR notes with a prior summary note, returns:
-  - `prior_fingerprint`
-  - compact `PriorDigest.findings`
-  - all prior summary markdown blocks in `PriorDigest.summaries`
-  - all inline discussion comments (resolved + unresolved) in `PriorDigest.inline_comments`
+    - `prior_fingerprint`
+    - compact `PriorDigest.findings`
+    - all prior summary markdown blocks in `PriorDigest.summaries`
+    - all inline discussion comments (resolved + unresolved) in `PriorDigest.inline_comments`
 
 **Failure tests**
 
@@ -198,12 +198,12 @@ Fixture guidance:
 **Unit tests**
 
 - Prompt includes:
-  - schema instruction (“JSON only”) for cursor only
-  - prepared diff content
-  - truncation disclosure + what was truncated (or instruction to include it)
-  - redaction flag (if secrets found)
-  - prior digest + “avoid repeating” instruction
-  - verbosity + skills if configured
+    - schema instruction (“JSON only”) for cursor only
+    - prepared diff content
+    - truncation disclosure + what was truncated (or instruction to include it)
+    - redaction flag (if secrets found)
+    - prior digest + “avoid repeating” instruction
+    - verbosity + skills if configured
 
 - For codex prompts, assert schema and hard JSON-only sections are omitted.
 
@@ -252,16 +252,16 @@ Fixture guidance:
 **Unit tests**
 
 - Produces summary note markdown that includes:
-  - `<details><summary>Metadata</summary>...`
-  - fingerprint, agent, duration, token usage (if available)
-  - truncation disclosure clearly marked when truncated
-  - truncation details `<details>` section listing excluded/limited items
-  - redaction warning section if secrets found (without raw secrets)
+    - `<details><summary>Metadata</summary>...`
+    - fingerprint, agent, duration, token usage (if available)
+    - truncation disclosure clearly marked when truncated
+    - truncation details `<details>` section listing excluded/limited items
+    - redaction warning section if secrets found (without raw secrets)
 
 - Builds `PostPlan` with:
-  - `discussions[]` mapped from findings
-  - unpositioned findings degrade gracefully (if position not computable)
-  - unpositioned findings rendered as per-finding `<details>` blocks with
+    - `discussions[]` mapped from findings
+    - unpositioned findings degrade gracefully (if position not computable)
+    - unpositioned findings rendered as per-finding `<details>` blocks with
     `<summary>` category/severity + path/line-range and full `body_markdown`
 
 ---
@@ -273,11 +273,11 @@ Fixture guidance:
 - `POST note` success -> records correct payload.
 - `POST discussion` success -> records correct payload.
 - Retry behavior:
-  - 429 then 201 -> succeeds with retry_count incremented
-  - 5xx then 201 -> succeeds
+    - 429 then 201 -> succeeds with retry_count incremented
+    - 5xx then 201 -> succeeds
 - Non-retryable:
-  - 401/403 -> `GITLAB_AUTH_ERROR` (no retries)
-  - 400 invalid position -> `GITLAB_POSITION_INVALID` (no retries unless recompute is implemented)
+    - 401/403 -> `GITLAB_AUTH_ERROR` (no retries)
+    - 400 invalid position -> `GITLAB_POSITION_INVALID` (no retries unless recompute is implemented)
 
 ---
 
@@ -286,16 +286,16 @@ Fixture guidance:
 **Component tests**
 
 - Happy path with fake agent + fake gitlab:
-  - writes artifacts: `prompt.txt`, `agent.raw.txt`, `review.json`, `post_plan.json`, `post_results.json`, `events.jsonl`, `run.json`
-  - `run.json.ok == true`
+    - writes artifacts: `prompt.txt`, `agent.raw.txt`, `review.json`, `post_plan.json`, `post_results.json`, `events.jsonl`, `run.json`
+    - `run.json.ok == true`
 - Failure path:
-  - cursor invalid after retries -> structured `AGENT_OUTPUT_INVALID`
-  - codex invalid output on single attempt -> structured `AGENT_OUTPUT_INVALID`
-  - still writes: `prompt.txt`, `agent.raw.txt`, `run.json` with structured error
-  - exits non-zero (test via calling `run()` directly or using `pytest` to capture SystemExit)
+    - cursor invalid after retries -> structured `AGENT_OUTPUT_INVALID`
+    - codex invalid output on single attempt -> structured `AGENT_OUTPUT_INVALID`
+    - still writes: `prompt.txt`, `agent.raw.txt`, `run.json` with structured error
+    - exits non-zero (test via calling `run()` directly or using `pytest` to capture SystemExit)
 - Skip path:
-  - writes minimal artifacts + stdout message
-  - does not call agent or GitLab poster
+    - writes minimal artifacts + stdout message
+    - does not call agent or GitLab poster
 
 ---
 
@@ -327,11 +327,11 @@ Fixture guidance:
 ## Suggested CI test jobs (GitHub Actions)
 
 - `unit`:
-  - `pytest -q`
+    - `pytest -q`
 - `lint` / `typecheck`:
-  - ruff/black + mypy (if enabled)
+    - ruff/black + mypy (if enabled)
 - `smoke` (manual trigger):
-  - runs `diffsan` with real Cursor + GitLab token against a controlled MR
+    - runs `diffsan` with real Cursor + GitLab token against a controlled MR
 
 Keep smoke tests out of the default pipeline or make them `workflow_dispatch` only.
 

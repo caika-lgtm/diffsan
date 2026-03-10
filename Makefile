@@ -1,4 +1,4 @@
-.PHONY: verify fix lint format format-check type-check install test test-cov test-matrix test-matrix-cov pysentry docs docs-serve
+.PHONY: verify fix lint format format-check type-check install test test-cov test-matrix test-matrix-cov pysentry docs docs-serve docs-home
 
 # Keep uv caches inside the project (sandbox-safe)
 export UV_CACHE_DIR := $(CURDIR)/.uv-cache
@@ -52,8 +52,11 @@ pysentry:
 
 
 # Documentation
-docs:
+docs-home:
+	python3 scripts/generate_docs_home.py
+
+docs: docs-home
 	uv run mkdocs build
 
-docs-serve:
+docs-serve: docs-home
 	uv run mkdocs serve
