@@ -27,6 +27,7 @@ from diffsan.contracts.models import (
 )
 from diffsan.core.agent_codex import run_codex_once
 from diffsan.core.agent_cursor import AgentAttempt, run_cursor_once
+from diffsan.core.codex_config import configure_codex_proxy_model_provider
 from diffsan.core.config import load_config
 from diffsan.core.diff_provider import get_diff
 from diffsan.core.fingerprint import compute_fingerprint
@@ -75,6 +76,7 @@ class RunOptions:
 
     ci: bool | None = None
     agent: Literal["cursor", "codex"] | None = None
+    proxy_url: str | None = None
     dry_run: bool = False
     workdir: str | None = None
     note_timezone: str | None = None
@@ -105,6 +107,7 @@ def run(options: RunOptions) -> RunResult:
         loaded_config = load_config(
             ci=options.ci,
             agent=options.agent,
+            proxy_url=options.proxy_url,
             workdir=options.workdir,
             note_timezone=options.note_timezone,
             config_file=options.config_file,
@@ -450,6 +453,13 @@ def _run_codex_single_attempt(
     artifacts: ArtifactStore,
     events: EventLogger,
 ) -> ValidatedAgentOutput:
+    if config.agent.proxy_url is not None:
+        configure_codex_proxy_model_provider(config.agent.proxy_url)
+        print(
+            "Codex proxy configured. Set DIFFSAN_OPENAI_API_KEY to authenticate "
+            "the proxy provider."
+        )
+
     attempt = run_codex_once(
         request_prompt,
         config,

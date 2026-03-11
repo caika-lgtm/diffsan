@@ -22,6 +22,7 @@ Current CLI overrides:
 
 - `--ci/--no-ci` overrides `mode.ci`
 - `--agent <cursor|codex>` overrides `agent.agent`
+- `--proxy-url <url>` overrides `agent.proxy_url` (Codex only)
 - `--config <path>` selects the TOML config file to load
 
 `workdir` and `note_timezone` are config values, but the current public CLI does not expose dedicated flags for them.
@@ -69,6 +70,7 @@ Examples:
 export DIFFSAN_WORKDIR=".ai-review"
 export DIFFSAN_MODE__CI="true"
 export DIFFSAN_AGENT__AGENT="codex"
+export DIFFSAN_AGENT__PROXY_URL="https://proxy.example.com/v1"
 export DIFFSAN_TRUNCATION__INCLUDE_EXTENSIONS='[".py",".ts"]'
 export DIFFSAN_SECRETS__EXTRA_PATTERNS='["ghp_[A-Za-z0-9]{36}"]'
 ```
@@ -81,6 +83,7 @@ Current `diffsan` CLI flags:
 | --- | --- |
 | `--ci/--no-ci` | Overrides `mode.ci` |
 | `--agent <cursor|codex>` | Overrides `agent.agent` |
+| `--proxy-url <url>` | Overrides `agent.proxy_url` for Codex runs |
 | `--config <path>` | Selects the TOML config file |
 | `--dry-run` | Runs the no-op harness and writes run artifacts without executing the review pipeline |
 | `--version` | Prints the CLI version and exits |
@@ -141,11 +144,16 @@ Current `diffsan` CLI flags:
 | `agent.agent` | `"cursor" \| "codex"` | `cursor` | Selects the agent backend. |
 | `agent.cursor_command` | `str \| null` | `null` | Custom Cursor command. If omitted, diffsan uses the built-in default. |
 | `agent.codex_command` | `str \| null` | `null` | Custom Codex command. If omitted, diffsan uses the built-in default. |
+| `agent.proxy_url` | `str \| null` | `null` | Codex-only proxy URL. When set, diffsan updates `~/.codex/config.toml` before invoking Codex. |
 | `agent.max_json_retries` | `int` | `3` | Maximum Cursor parse/repair attempts. Ignored for Codex runs. |
 | `agent.json_repair_prompt` | `str` | `Return ONLY valid JSON that matches the schema.` | Prefix text used when building Cursor repair prompts. Ignored for Codex runs. |
 | `agent.verbosity` | `"low" \| "medium" \| "high"` | `medium` | Passed into prompt guidance. |
 | `agent.skills` | `list[str]` | `[]` | Passed into prompt guidance as lightweight review hints. |
 | `agent.prompt_template` | `str \| null` | `null` | Reserved in the schema, but not currently used by the prompt builder. |
+
+Validation rule:
+
+- `agent.proxy_url` is only valid when `agent.agent = "codex"`.
 
 ### `gitlab`
 
@@ -220,6 +228,11 @@ Current Codex behavior:
 - If a custom command already includes `--output-schema` or `--output-last-message`, diffsan rewrites those flags to point at the workdir artifacts.
 - If a custom command does not include a sandbox value, diffsan inserts `--sandbox read-only`.
 - If a custom command already provides a sandbox value, diffsan preserves it.
+- If `agent.proxy_url` is set, diffsan rewrites `~/.codex/config.toml` before invoking Codex:
+  - sets top-level `model_provider = "proxy"`
+  - writes a single `[model_providers.proxy]` block with the supplied `base_url`
+  - sets `env_key = "DIFFSAN_OPENAI_API_KEY"`
+- When proxy mode is used, diffsan prints a reminder to set `DIFFSAN_OPENAI_API_KEY`.
 
 ## Runtime Environment Outside `DIFFSAN_*`
 
@@ -260,9 +273,24 @@ These are used when available and are required unless you override with config w
 ### Agent authentication
 
 - Cursor default command optionally reads `CURSOR_API_KEY`
-- Codex authentication is handled by the `codex` CLI itself, not by diffsan
+- Codex authentication is handled by the `codex` CLI itself unless `agent.proxy_url` is set
 
-In practice, a Codex setup often relies on environment such as `OPENAI_API_KEY`, but that is outside diffsan's own config surface.
+If `agent.proxy_url` is set, diffsan configures Codex with:
+
+```toml
+[model_providers.proxy]
+name = "proxy"
+base_url = "<your proxy url>"
+env_key = "DIFFSAN_OPENAI_API_KEY"
+```
+
+For proxy-backed Codex runs, you must provide:
+
+```bash
+export DIFFSAN_OPENAI_API_KEY="..."
+```
+
+If `agent.proxy_url` is not set, any non-proxy Codex authentication still depends on your existing Codex CLI setup.
 
 ## Example `.diffsan.toml`
 

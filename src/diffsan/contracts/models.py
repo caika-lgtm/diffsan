@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 from diffsan.contracts.errors import ErrorInfo  # noqa: TC001
 
@@ -75,11 +75,21 @@ class AgentConfig(StrictModel):
     agent: Literal["cursor", "codex"] = "cursor"
     cursor_command: str | None = None
     codex_command: str | None = None
+    proxy_url: str | None = None
     max_json_retries: int = 3
     json_repair_prompt: str = "Return ONLY valid JSON that matches the schema."
     verbosity: Literal["low", "medium", "high"] = "medium"
     skills: list[str] = Field(default_factory=list)
     prompt_template: str | None = None
+
+    @model_validator(mode="after")
+    def validate_codex_only_fields(self) -> AgentConfig:
+        """Reject Codex-only options for non-Codex agents."""
+        if self.proxy_url is not None and self.agent != "codex":
+            raise ValueError(
+                "agent.proxy_url is only supported when agent.agent='codex'"
+            )
+        return self
 
 
 class GitLabConfig(StrictModel):

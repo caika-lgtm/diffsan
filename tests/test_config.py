@@ -341,6 +341,72 @@ def test_load_config_supports_codex_agent_overrides_from_env(
     assert loaded.config.agent.codex_command == "codex exec --model gpt-5"
 
 
+def test_load_config_supports_codex_proxy_url_from_env(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DIFFSAN_AGENT__AGENT", "codex")
+    monkeypatch.setenv("DIFFSAN_AGENT__PROXY_URL", "https://proxy.example.com/v1")
+
+    loaded = load_config()
+
+    assert loaded.config.agent.agent == "codex"
+    assert loaded.config.agent.proxy_url == "https://proxy.example.com/v1"
+
+
+def test_load_config_cli_proxy_url_override_wins_over_env(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DIFFSAN_AGENT__AGENT", "codex")
+    monkeypatch.setenv("DIFFSAN_AGENT__PROXY_URL", "https://env.example.com/v1")
+
+    loaded = load_config(agent="codex", proxy_url="https://cli.example.com/v1")
+
+    assert loaded.config.agent.proxy_url == "https://cli.example.com/v1"
+
+
+def test_load_config_rejects_proxy_url_for_cursor_agent(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DIFFSAN_AGENT__PROXY_URL", "https://proxy.example.com/v1")
+
+    with pytest.raises(ReviewerError) as exc_info:
+        load_config()
+
+    assert exc_info.value.error_info.error_code == ErrorCode.CONFIG_PARSE_ERROR
+
+
+def test_load_config_accepts_proxy_url_for_codex_agent_from_file(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / DEFAULT_CONFIG_FILE).write_text(
+        "\n".join(
+            [
+                "[agent]",
+                'agent = "codex"',
+                'proxy_url = "https://proxy.example.com/v1"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = load_config()
+
+    assert loaded.config.agent.agent == "codex"
+    assert loaded.config.agent.proxy_url == "https://proxy.example.com/v1"
+
+
 def test_load_config_errors_for_invalid_agent_value(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,

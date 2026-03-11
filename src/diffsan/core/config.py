@@ -68,6 +68,7 @@ def load_config(
     *,
     ci: bool | None = None,
     agent: Literal["cursor", "codex"] | None = None,
+    proxy_url: str | None = None,
     workdir: str | None = None,
     note_timezone: str | None = None,
     config_file: str | None = None,
@@ -80,6 +81,7 @@ def load_config(
     cli_overrides = _build_cli_overrides(
         ci=ci,
         agent=agent,
+        proxy_url=proxy_url,
         workdir=workdir,
         note_timezone=note_timezone,
     )
@@ -189,7 +191,14 @@ def _load_file_overrides(config_file: Path | None) -> dict[str, Any]:
 
 
 def _load_env_overrides() -> dict[str, Any]:
-    overrides = _EnvConfigOverrides()
+    try:
+        overrides = _EnvConfigOverrides()
+    except ValidationError as exc:
+        raise ReviewerError(
+            "Invalid environment configuration",
+            error_code=ErrorCode.CONFIG_PARSE_ERROR,
+            cause=exc,
+        ) from exc
     return overrides.model_dump(
         mode="python",
         exclude_none=True,
@@ -201,6 +210,7 @@ def _build_cli_overrides(
     *,
     ci: bool | None,
     agent: Literal["cursor", "codex"] | None,
+    proxy_url: str | None,
     workdir: str | None,
     note_timezone: str | None,
 ) -> dict[str, Any]:
@@ -211,8 +221,13 @@ def _build_cli_overrides(
     overrides: dict[str, Any] = {}
     if mode_overrides:
         overrides["mode"] = mode_overrides
+    agent_overrides: dict[str, Any] = {}
     if agent is not None:
-        overrides["agent"] = {"agent": agent}
+        agent_overrides["agent"] = agent
+    if proxy_url is not None:
+        agent_overrides["proxy_url"] = proxy_url
+    if agent_overrides:
+        overrides["agent"] = agent_overrides
     if workdir is not None:
         overrides["workdir"] = workdir
     if note_timezone is not None:
