@@ -70,6 +70,7 @@ Fields are grouped for clarity. Exact defaults are implementation-defined but sh
     "agent": "cursor",
     "cursor_command": null,
     "codex_command": null,
+    "proxy_url": null,
     "max_json_retries": 3,
     "json_repair_prompt": "Return ONLY valid JSON that matches the schema.",
     "verbosity": "medium",
@@ -89,6 +90,8 @@ Fields are grouped for clarity. Exact defaults are implementation-defined but sh
   "logging": { "level": "info", "structured": true }
 }
 ```
+
+`agent.proxy_url` is Codex-only. If it is set while `agent.agent != "codex"`, config validation must fail.
 
 ### DiffBundle (diff acquisition)
 

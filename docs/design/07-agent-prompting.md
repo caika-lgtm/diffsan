@@ -107,6 +107,7 @@ Execution defaults for Codex CLI in diffsan:
 - diffsan reads JSON from `codex-output.json` and validates against `AgentReviewOutput`.
 - No JSON repair retry loop is used for codex runs.
 - `max_json_retries` and `json_repair_prompt` are cursor-only controls.
+- If `agent.proxy_url` is set, diffsan rewrites `~/.codex/config.toml` before execution so Codex uses `model_provider = "proxy"` and `env_key = "DIFFSAN_OPENAI_API_KEY"`.
 
 ### Retry loop rules
 

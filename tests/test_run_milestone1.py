@@ -463,6 +463,156 @@ def test_run_codex_single_attempt_writes_stderr_artifacts(
     )
 
 
+def test_run_codex_proxy_configures_home_file_and_prints_reminder(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """Codex proxy should be configured before subprocess execution."""
+    diff_bundle, prepared = _fixture_diff_and_prepared()
+    _patch_pipeline_dependencies(
+        monkeypatch,
+        diff_bundle=diff_bundle,
+        prepared=prepared,
+    )
+    monkeypatch.setenv("DIFFSAN_AGENT__AGENT", "codex")
+    monkeypatch.setenv("DIFFSAN_AGENT__PROXY_URL", "https://proxy.example.com/v1")
+    review = AgentReviewOutput(summary_markdown="### Codex summary", findings=[])
+    configured_urls: list[str] = []
+
+    def _configure(proxy_url: str) -> None:
+        configured_urls.append(proxy_url)
+
+    def _run_codex_once(prompt: str, config, **kwargs) -> AgentAttempt:
+        _ = prompt, config, kwargs
+        return _agent_attempt(
+            raw_stdout='{"summary_markdown":"ok","findings":[]}',
+            raw_stderr="",
+            exit_code=0,
+            duration_ms=1,
+        )
+
+    def _parse_and_validate(raw: str) -> AgentReviewOutput:
+        _ = raw
+        return review
+
+    monkeypatch.setattr(run_module, "configure_codex_proxy_model_provider", _configure)
+    monkeypatch.setattr(run_module, "run_codex_once", _run_codex_once)
+    monkeypatch.setattr(run_module, "parse_and_validate", _parse_and_validate)
+    monkeypatch.setattr(run_module, "print_summary_markdown", lambda _: None)
+
+    workdir = tmp_path / ".diffsan"
+    result = run_module.run(RunOptions(ci=True, dry_run=False, workdir=str(workdir)))
+
+    captured = capsys.readouterr()
+    assert result.ok is True
+    assert configured_urls == ["https://proxy.example.com/v1"]
+    assert "DIFFSAN_OPENAI_API_KEY" in captured.out
+
+
+def test_run_codex_without_proxy_does_not_touch_codex_home_config(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Codex runs without proxy_url should not rewrite home config."""
+    diff_bundle, prepared = _fixture_diff_and_prepared()
+    _patch_pipeline_dependencies(
+        monkeypatch,
+        diff_bundle=diff_bundle,
+        prepared=prepared,
+    )
+    monkeypatch.setenv("DIFFSAN_AGENT__AGENT", "codex")
+    review = AgentReviewOutput(summary_markdown="### Codex summary", findings=[])
+
+    def _run_codex_once(prompt: str, config, **kwargs) -> AgentAttempt:
+        _ = prompt, config, kwargs
+        return _agent_attempt(
+            raw_stdout='{"summary_markdown":"ok","findings":[]}',
+            raw_stderr="",
+            exit_code=0,
+            duration_ms=1,
+        )
+
+    def _parse_and_validate(raw: str) -> AgentReviewOutput:
+        _ = raw
+        return review
+
+    monkeypatch.setattr(
+        run_module,
+        "configure_codex_proxy_model_provider",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("proxy config should not run")
+        ),
+    )
+    monkeypatch.setattr(run_module, "run_codex_once", _run_codex_once)
+    monkeypatch.setattr(run_module, "parse_and_validate", _parse_and_validate)
+    monkeypatch.setattr(run_module, "print_summary_markdown", lambda _: None)
+
+    workdir = tmp_path / ".diffsan"
+    result = run_module.run(RunOptions(ci=True, dry_run=False, workdir=str(workdir)))
+
+    assert result.ok is True
+
+
+def test_run_codex_proxy_config_failure_fails_before_agent_exec(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Codex proxy config write failure should stop before subprocess execution."""
+    diff_bundle, prepared = _fixture_diff_and_prepared()
+    _patch_pipeline_dependencies(
+        monkeypatch,
+        diff_bundle=diff_bundle,
+        prepared=prepared,
+    )
+    monkeypatch.setenv("DIFFSAN_AGENT__AGENT", "codex")
+    monkeypatch.setenv("DIFFSAN_AGENT__PROXY_URL", "https://proxy.example.com/v1")
+
+    def _configure(_proxy_url: str) -> None:
+        raise ReviewerError(
+            "config write failed",
+            error_code=ErrorCode.AGENT_EXEC_FAILED,
+        )
+
+    monkeypatch.setattr(run_module, "configure_codex_proxy_model_provider", _configure)
+    monkeypatch.setattr(
+        run_module,
+        "run_codex_once",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("codex exec should not run")
+        ),
+    )
+    monkeypatch.setattr(run_module, "print_summary_markdown", lambda _: None)
+
+    workdir = tmp_path / ".diffsan"
+    result = run_module.run(RunOptions(ci=True, dry_run=False, workdir=str(workdir)))
+
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.error_code == ErrorCode.AGENT_EXEC_FAILED
+
+
+def test_run_dry_run_with_codex_proxy_skips_home_config_update(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Dry-run returns before any Codex home-config mutation."""
+    monkeypatch.setenv("DIFFSAN_AGENT__AGENT", "codex")
+    monkeypatch.setenv("DIFFSAN_AGENT__PROXY_URL", "https://proxy.example.com/v1")
+    monkeypatch.setattr(
+        run_module,
+        "configure_codex_proxy_model_provider",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("proxy config should not run during dry-run")
+        ),
+    )
+
+    workdir = tmp_path / ".diffsan"
+    result = run_module.run(RunOptions(ci=True, dry_run=True, workdir=str(workdir)))
+
+    assert result.ok is True
+
+
 def test_run_milestone3_post_failure_writes_results_and_fails(
     tmp_path: Path,
     monkeypatch,
