@@ -1,0 +1,45 @@
+tests/test_codex_config.py
+  b609c98b24415a8b 1-136
+tests/test_diffsan.py
+  b609c98b24415a8b 40,165-182
+tests/test_run_milestone1.py
+  b609c98b24415a8b 466-615
+docs/design/02-contracts-and-schemas.md
+  b609c98b24415a8b 73,94
+docs/design/07-agent-prompting.md
+  b609c98b24415a8b 110
+src/diffsan/run.py
+  b609c98b24415a8b 30,79,110,456-462
+src/diffsan/core/codex_config.py
+  b609c98b24415a8b 1-123
+src/diffsan/cli.py
+  b609c98b24415a8b 46-50,75
+tests/test_config.py
+  b609c98b24415a8b 344-409
+src/diffsan/core/config.py
+  b609c98b24415a8b 71,84,194,196-201,213,224,226-230
+src/diffsan/contracts/models.py
+  b609c98b24415a8b 8,78,85-92
+docs/configuration.md
+  b609c98b24415a8b 25,73,86,147,154-157,231-235,276-291,293
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "ffd5387ac32c88e1c10b5c4253569e16447900af",
+  "prompts": {
+    "b609c98b24415a8b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cdb24-2165-7090-b573-d74c7957dd27",
+        "model": "gpt-5.4"
+      },
+      "human_author": "kaian <caika@sea.com>",
+      "messages": [],
+      "total_additions": 574,
+      "total_deletions": 5,
+      "accepted_lines": 573,
+      "overriden_lines": 0
+    }
+  }
+}
