@@ -1,0 +1,51 @@
+src/diffsan/run.py
+  87b3254759f9f471 280
+src/diffsan/core/skip.py
+  87b3254759f9f471 19-20,35,39-45
+docs/design/05-test-strategy.md
+  87b3254759f9f471 120,130,190
+docs/design/08-decision-log.md
+  87b3254759f9f471 174-181
+docs/design/README.md
+  87b3254759f9f471 10
+docs/design/01-architecture.md
+  87b3254759f9f471 14,18,47-48
+tests/test_diff_provider.py
+  87b3254759f9f471 1,81-90,92-136,138-139,289-313,316
+docs/configuration.md
+  87b3254759f9f471 106,137-138,361-363
+docs/design/00-product-brief.md
+  87b3254759f9f471 23,56-62
+docs/design/02-contracts-and-schemas.md
+  87b3254759f9f471 98-99,231-243,397
+docs/design/03-artifacts-and-events.md
+  87b3254759f9f471 112,171,178
+tests/test_diffsan.py
+  87b3254759f9f471 107,109,118
+tests/test_run_milestone1.py
+  87b3254759f9f471 1200-1296
+tests/test_skip.py
+  87b3254759f9f471 117-130
+src/diffsan/core/diff_provider.py
+  87b3254759f9f471 1,30-37,127-156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "79d5e8b071c37f7155512c615701a3b39587cb1f",
+  "prompts": {
+    "87b3254759f9f471": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d0548-6bef-7d81-8a01-653123f487b1",
+        "model": "gpt-5.4"
+      },
+      "human_author": "kaian <caika@sea.com>",
+      "messages": [],
+      "total_additions": 309,
+      "total_deletions": 23,
+      "accepted_lines": 309,
+      "overriden_lines": 0
+    }
+  }
+}
