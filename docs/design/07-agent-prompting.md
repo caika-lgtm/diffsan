@@ -90,7 +90,9 @@ Cursor CLI does not guarantee structured output. `diffsan` must:
 Execution defaults for Cursor CLI in diffsan:
 
 - Default command: `cursor-agent --print --output-format json --trust`
+- If `agent.model` is set, diffsan injects `--model <value>`.
 - If `CURSOR_API_KEY` is set, diffsan passes it via `--api-key`.
+- If `agent.model` is set and a custom `agent.cursor_command` already includes `--model`, diffsan rewrites that flag so the configured model wins.
 - If a custom `agent.cursor_command` is configured without a trust flag (`--trust`, `--yolo`, `-f`), diffsan appends `--trust`.
 - Any sensitive command argument values are redacted in persisted error context.
 
@@ -103,10 +105,12 @@ Codex CLI supports structured output directly through schema/output-file flags.
 Execution defaults for Codex CLI in diffsan:
 
 - Default command: `codex exec --output-schema <workdir>/codex-output-schema.json --output-last-message <workdir>/codex-output.json --sandbox read-only`
+- If `agent.model` is set, diffsan injects `--model <value>`.
 - Prompt is passed through stdin.
 - diffsan reads JSON from `codex-output.json` and validates against `AgentReviewOutput`.
 - No JSON repair retry loop is used for codex runs.
 - `max_json_retries` and `json_repair_prompt` are cursor-only controls.
+- If `agent.model` is set and a custom `agent.codex_command` already includes `--model` or `-m`, diffsan rewrites that flag so the configured model wins.
 - If `agent.proxy_url` is set, diffsan rewrites `~/.codex/config.toml` before execution so Codex uses `model_provider = "proxy"` and `env_key = "DIFFSAN_OPENAI_API_KEY"`.
 
 ### Retry loop rules

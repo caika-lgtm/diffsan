@@ -43,6 +43,11 @@ def main(
         "--agent",
         help="Override agent backend (cursor or codex).",
     ),
+    model: str | None = typer.Option(
+        None,
+        "--model",
+        help="Override the model used by the selected agent backend.",
+    ),
     proxy_url: str | None = typer.Option(
         None,
         "--proxy-url",
@@ -72,6 +77,7 @@ def main(
         RunOptions(
             ci=ci,
             agent=agent,
+            model=model,
             proxy_url=proxy_url,
             dry_run=dry_run,
             config_file=str(config_file) if config_file is not None else None,

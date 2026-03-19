@@ -130,6 +130,45 @@ def test_run_cursor_once_default_command_without_api_key(monkeypatch) -> None:
     ]
 
 
+def test_run_cursor_once_default_command_injects_configured_model(
+    monkeypatch,
+) -> None:
+    """Configured model is added to the default cursor command."""
+    monkeypatch.delenv("CURSOR_API_KEY", raising=False)
+    commands: list[list[str]] = []
+
+    def _run(
+        command: list[str],
+        *,
+        input: str,
+        text: bool,
+        capture_output: bool,
+        check: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        assert input == "prompt-text"
+        assert text is True
+        assert capture_output is True
+        assert check is False
+        return subprocess.CompletedProcess(command, 0, stdout="{}", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _run)
+
+    run_cursor_once("prompt-text", AppConfig(agent=AgentConfig(model="gpt-5.3-codex")))
+
+    assert commands == [
+        [
+            "cursor-agent",
+            "--print",
+            "--output-format",
+            "json",
+            "--model",
+            "gpt-5.3-codex",
+            "--trust",
+        ]
+    ]
+
+
 def test_run_cursor_once_custom_command_keeps_existing_trust_flag(monkeypatch) -> None:
     """Custom cursor command should not duplicate trust when already provided."""
     commands: list[list[str]] = []
@@ -168,6 +207,48 @@ def test_run_cursor_once_custom_command_keeps_existing_trust_flag(monkeypatch) -
             "json",
             "--model",
             "gpt-5",
+            "--trust",
+        ]
+    ]
+
+
+def test_run_cursor_once_custom_command_rewrites_model_from_config(monkeypatch) -> None:
+    """Configured model should replace any existing custom cursor model flag."""
+    commands: list[list[str]] = []
+
+    def _run(
+        command: list[str],
+        *,
+        input: str,
+        text: bool,
+        capture_output: bool,
+        check: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        assert input == "prompt-text"
+        assert text is True
+        assert capture_output is True
+        assert check is False
+        return subprocess.CompletedProcess(command, 0, stdout="{}", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _run)
+
+    config = AppConfig(
+        agent=AgentConfig(
+            model="gpt-5.3-codex",
+            cursor_command="cursor-agent --print --output-format json --model gpt-4.1",
+        )
+    )
+    run_cursor_once("prompt-text", config)
+
+    assert commands == [
+        [
+            "cursor-agent",
+            "--print",
+            "--output-format",
+            "json",
+            "--model",
+            "gpt-5.3-codex",
             "--trust",
         ]
     ]

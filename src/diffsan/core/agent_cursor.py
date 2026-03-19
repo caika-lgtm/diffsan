@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from diffsan.contracts.models import AppConfig
 
 _TRUST_FLAGS = {"--trust", "--yolo", "-f"}
+_MODEL_FLAGS = ("--model",)
 _SENSITIVE_VALUE_FLAGS = {"--api-key", "--token", "--access-token", "--password"}
 
 
@@ -33,7 +34,7 @@ class AgentAttempt:
 
 def run_cursor_once(prompt: str, config: AppConfig) -> AgentAttempt:
     """Execute one agent attempt and return raw outputs."""
-    command = _build_cursor_command(config.agent.cursor_command)
+    command = _build_cursor_command(config.agent.cursor_command, config.agent.model)
     if not command:
         raise ReviewerError(
             "Agent command is empty",
@@ -79,18 +80,45 @@ def run_cursor_once(prompt: str, config: AppConfig) -> AgentAttempt:
     )
 
 
-def _build_cursor_command(cursor_cmd: str | None) -> list[str]:
+def _build_cursor_command(cursor_cmd: str | None, model: str | None) -> list[str]:
     if cursor_cmd is not None:
         custom_command = shlex.split(cursor_cmd)
         if not custom_command:
             return []
-        return _ensure_trust_flag(custom_command)
+        command = custom_command
+        if model is not None:
+            command = _set_flag_value(command, _MODEL_FLAGS, model)
+        return _ensure_trust_flag(command)
 
     command = ["cursor-agent", "--print", "--output-format", "json"]
+    if model is not None:
+        command.extend(["--model", model])
     api_key = os.getenv("CURSOR_API_KEY")
     if api_key:
         command.extend(["--api-key", api_key])
     return _ensure_trust_flag(command)
+
+
+def _set_flag_value(
+    command: list[str], flags: tuple[str, ...], value: str
+) -> list[str]:
+    aliases = set(flags)
+    prefixes = tuple(f"{flag}=" for flag in flags)
+    rewritten: list[str] = []
+    skip_next = False
+    for idx, token in enumerate(command):
+        if skip_next:
+            skip_next = False
+            continue
+        if token in aliases:
+            if idx + 1 < len(command) and not command[idx + 1].startswith("-"):
+                skip_next = True
+            continue
+        if any(token.startswith(prefix) for prefix in prefixes):
+            continue
+        rewritten.append(token)
+    rewritten.extend([flags[0], value])
+    return rewritten
 
 
 def _ensure_trust_flag(command: list[str]) -> list[str]:

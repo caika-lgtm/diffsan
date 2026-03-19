@@ -68,6 +68,7 @@ Fields are grouped for clarity. Exact defaults are implementation-defined but sh
   },
   "agent": {
     "agent": "cursor",
+    "model": null,
     "cursor_command": null,
     "codex_command": null,
     "proxy_url": null,

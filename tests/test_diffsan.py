@@ -37,6 +37,7 @@ def test_cli_help() -> None:
     plain = ANSI_OR_CSI_RE.sub("", result.stdout)
     assert re.search(r"--\s*dry\s*-\s*run", plain)
     assert "--agent" in plain
+    assert "--model" in plain
     assert "--proxy-url" in plain
 
 
@@ -181,6 +182,26 @@ def test_cli_proxy_url_option_is_forwarded(monkeypatch) -> None:
     assert result.exit_code == 0
     options = captured["options"]
     assert getattr(options, "proxy_url", None) == "https://proxy.example.com/v1"
+
+
+def test_cli_model_option_is_forwarded(monkeypatch) -> None:
+    """CLI forwards --model into RunOptions."""
+    captured: dict[str, object] = {}
+
+    def _fake_run(options):
+        captured["options"] = options
+        return SimpleNamespace(ok=True)
+
+    monkeypatch.setattr(cli_module, "run", _fake_run)
+
+    result = runner.invoke(
+        app,
+        ["--dry-run", "--model", "gpt-5.3-codex"],
+    )
+
+    assert result.exit_code == 0
+    options = captured["options"]
+    assert getattr(options, "model", None) == "gpt-5.3-codex"
 
 
 def test_run_workdir_creation_failure_falls_back_to_default(

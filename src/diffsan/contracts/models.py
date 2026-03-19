@@ -73,6 +73,7 @@ class SkipConfig(StrictModel):
 
 class AgentConfig(StrictModel):
     agent: Literal["cursor", "codex"] = "cursor"
+    model: str | None = None
     cursor_command: str | None = None
     codex_command: str | None = None
     proxy_url: str | None = None
