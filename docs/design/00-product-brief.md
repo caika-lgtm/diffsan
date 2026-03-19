@@ -20,7 +20,7 @@ Supported agents are **Cursor CLI** (default) and **Codex CLI**.
 ## Non-goals
 
 - Do **not** block merges. The tool may exit non-zero on error, but the pipeline stage can be configured allow-failure. Merge decisions remain with humans.
-- Standalone mode is minimal (prints to stdout only; no GitLab posting).
+- Standalone mode is minimal (reviews local `git diff` output, prints to stdout only, and does not post to GitLab).
 - Not aiming for org-wide service/infrastructure; it is a **local CLI** installed via pipx.
 - Not aiming for perfect dedupe/policy enforcement at MVP (keep extensible).
 
@@ -52,6 +52,14 @@ Supported agents are **Cursor CLI** (default) and **Codex CLI**.
 6. Format summary + discussions.
 7. Post to GitLab (notes + discussions) with retries.
 8. Always store artifacts (prompt + raw output + validated JSON + events).
+
+## Standalone mode
+
+When `mode.ci = false`, `diffsan` runs inside a local git repository and reviews the unstaged working-tree diff from `git diff --no-color`.
+
+- No MR variables are required.
+- No GitLab prior-context fetch or posting occurs.
+- If the local diff is empty, diffsan exits successfully with a skip reason instead of invoking the agent.
 
 ## Success metrics (practical)
 

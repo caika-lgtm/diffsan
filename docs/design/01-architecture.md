@@ -11,11 +11,11 @@ The monolith is structured as a pipeline of modules with contracts defined in `0
 ## High-level components (internal modules)
 
 - **ConfigLoader**: merge defaults + repo config + env + CLI args
-- **DiffProvider**: obtain MR diff (CI path is primary)
+- **DiffProvider**: obtain MR diff in CI or local unstaged `git diff` in standalone
 - **Preprocessor**: ignore/prioritize/truncate + secret scan/redact
 - **Fingerprinting**: sha256(raw diff), deterministic finding IDs (optional)
 - **PriorDigestResolver**: fetch prior bot summary notes + inline discussions and extract digest
-- **SkipEngine**: decide whether to skip (MVP: auto-merge)
+- **SkipEngine**: decide whether to skip (CI: auto-merge / same fingerprint; standalone: empty diff)
 - **PromptBuilder**: build agent prompt and inject diff + digest + flags (schema/rules are agent-dependent)
 - **AgentRunner (Cursor/Codex)**: run selected agent CLI; cursor uses retry/repair, codex uses structured single-attempt execution
 - **Parser/Validator**: parse agent output to strict JSON and validate with Pydantic
@@ -44,7 +44,8 @@ The monolith is structured as a pipeline of modules with contracts defined in `0
 
 Standalone mode is minimal:
 
-- acquire diff locally (simple)
+- acquire local unstaged diff via `git diff --no-color`
+- skip cleanly when the local diff is empty
 - run agent and validate
 - print summary to stdout
 - no GitLab posting

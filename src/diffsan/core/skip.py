@@ -16,6 +16,8 @@ _AUTO_MERGE_REASON_CODE = "AUTO_MERGE"
 _AUTO_MERGE_REASON_MESSAGE = "MR has auto-merge enabled"
 _SAME_FINGERPRINT_REASON_CODE = "SAME_FINGERPRINT"
 _SAME_FINGERPRINT_REASON_MESSAGE = "Diff fingerprint matches latest diffsan review"
+_NO_DIFF_REASON_CODE = "NO_DIFF"
+_NO_DIFF_REASON_MESSAGE = "No unstaged changes to review"
 _AUTO_MERGE_BOOL_FIELDS = (
     "auto_merge_enabled",
     "merge_when_pipeline_succeeds",
@@ -30,9 +32,17 @@ def decide_skip(
     mr_payload: dict[str, Any] | None,
     fingerprint: Fingerprint | None,
     prior_digest: PriorDigest | None,
+    diff_has_content: bool = True,
 ) -> SkipDecision:
     """Build skip decision based on runtime config and MR metadata."""
     reasons: list[SkipReason] = []
+    if not config.mode.ci and not diff_has_content:
+        reasons.append(
+            SkipReason(
+                code=_NO_DIFF_REASON_CODE,
+                message=_NO_DIFF_REASON_MESSAGE,
+            )
+        )
     if (
         config.skip.skip_on_auto_merge
         and mr_payload is not None

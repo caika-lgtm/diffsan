@@ -1,4 +1,4 @@
-"""Tests for CI diff retrieval."""
+"""Tests for CI and standalone diff retrieval."""
 
 from __future__ import annotations
 
@@ -78,12 +78,65 @@ def test_get_diff_missing_ci_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert error.value.error_info.error_code == ErrorCode.DIFF_FETCH_FAILED
 
 
-def test_get_diff_non_ci_mode_rejected() -> None:
-    """Standalone mode is not implemented for diff provider."""
-    with pytest.raises(ReviewerError) as error:
-        get_diff(ci=False)
+def test_get_diff_standalone_parses_files(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Standalone diff fetch uses local git diff and parses file stats."""
+    raw_diff = """diff --git a/src/app.py b/src/app.py
+--- a/src/app.py
++++ b/src/app.py
+@@ -1 +1,2 @@
+-print("old")
++print("new")
++print("more")
+"""
 
-    assert error.value.error_info.error_code == ErrorCode.DIFF_FETCH_FAILED
+    commands: list[list[str]] = []
+
+    def _run(
+        command: list[str],
+        *,
+        check: bool,
+        text: bool,
+        capture_output: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        assert check is False
+        assert text is True
+        assert capture_output is True
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout=raw_diff, stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _run)
+
+    bundle = get_diff(ci=False)
+
+    assert commands == [["git", "diff", "--no-color"]]
+    assert bundle.source.ref.target_branch is None
+    assert bundle.source.ref.head_sha is None
+    assert bundle.raw_diff == raw_diff
+    assert [item.path for item in bundle.files] == ["src/app.py"]
+    assert bundle.files[0].additions == 2
+    assert bundle.files[0].deletions == 1
+
+
+def test_get_diff_standalone_empty_diff(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Standalone diff fetch allows empty diffs for clean skip handling."""
+
+    def _run(
+        command: list[str],
+        *,
+        check: bool,
+        text: bool,
+        capture_output: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        _ = check, text, capture_output
+        assert command == ["git", "diff", "--no-color"]
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _run)
+
+    bundle = get_diff(ci=False)
+
+    assert bundle.raw_diff == ""
+    assert bundle.files == []
 
 
 def test_get_diff_missing_head_sha(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -231,6 +284,36 @@ def test_get_diff_wraps_subprocess_oserror(monkeypatch: pytest.MonkeyPatch) -> N
         get_diff(ci=True)
 
     assert error.value.error_info.error_code == ErrorCode.DIFF_FETCH_FAILED
+
+
+def test_get_diff_standalone_raises_when_git_diff_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Standalone failures are normalized into DIFF_FETCH_FAILED."""
+
+    def _run(
+        command: list[str],
+        *,
+        check: bool,
+        text: bool,
+        capture_output: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        _ = check, text, capture_output
+        assert command == ["git", "diff", "--no-color"]
+        return subprocess.CompletedProcess(
+            command,
+            128,
+            stdout="",
+            stderr="fatal: not a git repository",
+        )
+
+    monkeypatch.setattr(subprocess, "run", _run)
+
+    with pytest.raises(ReviewerError) as error:
+        get_diff(ci=False)
+
+    assert error.value.error_info.error_code == ErrorCode.DIFF_FETCH_FAILED
+    assert error.value.error_info.context.get("mode") == "standalone"
 
 
 def test_get_diff_raises_after_all_target_refs_fail(

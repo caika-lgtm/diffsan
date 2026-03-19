@@ -1,4 +1,4 @@
-"""Diff acquisition for CI pipelines."""
+"""Diff acquisition for CI pipelines and standalone local runs."""
 
 from __future__ import annotations
 
@@ -27,10 +27,14 @@ class CiDiffContext:
 def get_diff(*, ci: bool) -> DiffBundle:
     """Fetch diff text for current run context."""
     if not ci:
-        raise ReviewerError(
-            "Diff retrieval currently supports CI mode only",
-            error_code=ErrorCode.DIFF_FETCH_FAILED,
-            context={"mode": "standalone"},
+        raw_diff = _run_local_git_diff()
+        return DiffBundle(
+            source=DiffSource(
+                kind="git-diff",
+                ref=DiffRef(),
+            ),
+            raw_diff=raw_diff,
+            files=_parse_files(raw_diff),
         )
 
     context = _read_ci_context()
@@ -118,6 +122,38 @@ def _run_git_diff(context: CiDiffContext) -> str:
 
     assert last_error is not None
     raise last_error
+
+
+def _run_local_git_diff() -> str:
+    command = ["git", "diff", "--no-color"]
+    try:
+        result = subprocess.run(
+            command,
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+    except OSError as exc:
+        raise ReviewerError(
+            "Failed to execute git diff",
+            error_code=ErrorCode.DIFF_FETCH_FAILED,
+            cause=exc,
+            context={"command": " ".join(command), "mode": "standalone"},
+        ) from exc
+
+    if result.returncode == 0:
+        return result.stdout
+
+    raise ReviewerError(
+        "git diff failed for standalone review",
+        error_code=ErrorCode.DIFF_FETCH_FAILED,
+        cause=result.stderr.strip() or "unknown git error",
+        context={
+            "command": " ".join(command),
+            "returncode": result.returncode,
+            "mode": "standalone",
+        },
+    )
 
 
 def _fetch_target_branch(target_branch: str) -> tuple[bool, str | None]:

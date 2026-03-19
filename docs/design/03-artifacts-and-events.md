@@ -109,7 +109,7 @@ Example skipped:
   "ok": true,
   "skipped": true,
   "skip_reasons": [
-    { "code": "AUTO_MERGE", "message": "MR has auto-merge enabled" }
+    { "code": "NO_DIFF", "message": "No unstaged changes to review" }
   ],
   "fingerprint": { "algo": "sha256", "value": "b7d4..." }
 }
@@ -168,12 +168,14 @@ Fields:
 
 - `diff.fetched`
     - `{"chars":..., "files":..., "base_sha":"...", "head_sha":"..."}`
+    - standalone runs may set `base_sha` and `head_sha` to `null`
 
 - `diff.prepared`
     - `{"final_chars":..., "truncated":true|false, "redaction_found":true|false}`
 
 - `skip.decided`
     - `{"should_skip":true|false, "reasons":[...], "fingerprint":"sha256:..."}`
+    - standalone empty diff uses reason code `NO_DIFF`
 
 - `prompt.written`
     - `{"path":"prompt.txt", "chars":...}`

@@ -117,6 +117,7 @@ Fixture guidance:
 
 - Environment parsing for CI variables (MR iid, project id, branches).
 - Command construction for `git fetch origin <target>` + `git diff target...head`.
+- Standalone command construction for local `git diff --no-color`.
 
 **Component tests**
 
@@ -126,6 +127,7 @@ Fixture guidance:
 
 - Missing required CI vars raises `DIFF_FETCH_FAILED` with context.
 - Git command non-zero exit raises `DIFF_FETCH_FAILED` (retryable: false by default).
+- Standalone outside-a-repo failure raises `DIFF_FETCH_FAILED`.
 
 ---
 
@@ -185,6 +187,7 @@ Fixture guidance:
 **Unit tests**
 
 - Auto-merge signal true => `should_skip == true` with reason `AUTO_MERGE`.
+- Standalone empty diff => `should_skip == true` with reason `NO_DIFF`.
 - Otherwise `should_skip == false`.
 
 **Component tests**

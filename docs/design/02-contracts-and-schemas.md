@@ -95,6 +95,8 @@ Fields are grouped for clarity. Exact defaults are implementation-defined but sh
 
 ### DiffBundle (diff acquisition)
 
+In CI mode, `ref` contains MR branch/SHA metadata. In standalone mode, the `ref` fields are `null` and `raw_diff` is the local unstaged diff from `git diff --no-color`.
+
 ```json
 {
   "source": {
@@ -223,6 +225,22 @@ Fields are grouped for clarity. Exact defaults are implementation-defined but sh
   "reasons": [],
   "fingerprint": { "algo": "sha256", "value": "b7d4..." },
   "prior_digest": { "...": "see PriorDigest" }
+}
+```
+
+Standalone runs may also skip with:
+
+```json
+{
+  "should_skip": true,
+  "reasons": [
+    {
+      "code": "NO_DIFF",
+      "message": "No unstaged changes to review"
+    }
+  ],
+  "fingerprint": { "algo": "sha256", "value": "e3b0..." },
+  "prior_digest": null
 }
 ```
 
@@ -375,6 +393,8 @@ Each line is a JSON object:
   "data": { "chars": 18342, "files": 12 }
 }
 ```
+
+For standalone runs, `diff.fetched` may also include `base_sha: null` and `head_sha: null`.
 
 Suggested events (MVP):
 
