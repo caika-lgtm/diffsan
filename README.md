@@ -89,7 +89,6 @@ project, and plan to use the `codex` agent backend.
    You need to set the `OPENAI_API_KEY` environment variable.
 
    You can use the same project CI/CD variable flow as in step 2:
-
    - `Key`: `OPENAI_API_KEY`
    - `Value`: your OpenAI API key
 

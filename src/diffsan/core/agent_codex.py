@@ -20,6 +20,7 @@ _DEFAULT_SANDBOX = "read-only"
 _OUTPUT_SCHEMA_FLAG = "--output-schema"
 _OUTPUT_LAST_MESSAGE_FLAG = "--output-last-message"
 _SANDBOX_FLAG = "--sandbox"
+_MODEL_FLAGS = ("--model", "-m")
 _SENSITIVE_VALUE_FLAGS = {"--api-key", "--token", "--access-token", "--password"}
 
 
@@ -38,6 +39,7 @@ def run_codex_once(
 
     command = _build_codex_command(
         config.agent.codex_command,
+        model=config.agent.model,
         schema_path=schema_path,
         output_path=output_path,
     )
@@ -139,6 +141,7 @@ def _read_output_file(path: Path) -> str:
 def _build_codex_command(
     codex_command: str | None,
     *,
+    model: str | None,
     schema_path: Path,
     output_path: Path,
 ) -> list[str]:
@@ -150,28 +153,33 @@ def _build_codex_command(
             "Agent command is empty",
             error_code=ErrorCode.AGENT_EXEC_FAILED,
         )
-    command = _set_flag_value(command, _OUTPUT_SCHEMA_FLAG, str(schema_path))
-    command = _set_flag_value(command, _OUTPUT_LAST_MESSAGE_FLAG, str(output_path))
+    if model is not None:
+        command = _set_flag_value(command, _MODEL_FLAGS, model)
+    command = _set_flag_value(command, (_OUTPUT_SCHEMA_FLAG,), str(schema_path))
+    command = _set_flag_value(command, (_OUTPUT_LAST_MESSAGE_FLAG,), str(output_path))
     command = _ensure_flag_value(command, _SANDBOX_FLAG, _DEFAULT_SANDBOX)
     return command
 
 
-def _set_flag_value(command: list[str], flag: str, value: str) -> list[str]:
+def _set_flag_value(
+    command: list[str], flags: tuple[str, ...], value: str
+) -> list[str]:
+    aliases = set(flags)
+    prefixes = tuple(f"{flag}=" for flag in flags)
     rewritten: list[str] = []
     skip_next = False
-    prefix = f"{flag}="
     for idx, token in enumerate(command):
         if skip_next:
             skip_next = False
             continue
-        if token == flag:
+        if token in aliases:
             if idx + 1 < len(command) and not command[idx + 1].startswith("-"):
                 skip_next = True
             continue
-        if token.startswith(prefix):
+        if any(token.startswith(prefix) for prefix in prefixes):
             continue
         rewritten.append(token)
-    rewritten.extend([flag, value])
+    rewritten.extend([flags[0], value])
     return rewritten
 
 

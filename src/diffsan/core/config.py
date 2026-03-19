@@ -68,6 +68,7 @@ def load_config(
     *,
     ci: bool | None = None,
     agent: Literal["cursor", "codex"] | None = None,
+    model: str | None = None,
     proxy_url: str | None = None,
     workdir: str | None = None,
     note_timezone: str | None = None,
@@ -81,6 +82,7 @@ def load_config(
     cli_overrides = _build_cli_overrides(
         ci=ci,
         agent=agent,
+        model=model,
         proxy_url=proxy_url,
         workdir=workdir,
         note_timezone=note_timezone,
@@ -210,6 +212,7 @@ def _build_cli_overrides(
     *,
     ci: bool | None,
     agent: Literal["cursor", "codex"] | None,
+    model: str | None,
     proxy_url: str | None,
     workdir: str | None,
     note_timezone: str | None,
@@ -224,6 +227,8 @@ def _build_cli_overrides(
     agent_overrides: dict[str, Any] = {}
     if agent is not None:
         agent_overrides["agent"] = agent
+    if model is not None:
+        agent_overrides["model"] = model
     if proxy_url is not None:
         agent_overrides["proxy_url"] = proxy_url
     if agent_overrides:

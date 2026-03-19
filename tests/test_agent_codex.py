@@ -80,6 +80,49 @@ def test_run_codex_once_uses_default_command_and_reads_output(
     ]
 
 
+def test_run_codex_once_default_command_injects_configured_model(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Configured model is added to the default codex command."""
+    commands: list[list[str]] = []
+
+    def _run(
+        command: list[str],
+        *,
+        input: str,
+        text: bool,
+        capture_output: bool,
+        check: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        _write_output_from_command(command, '{"summary_markdown":"ok","findings":[]}')
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _run)
+
+    run_codex_once(
+        "prompt-text",
+        AppConfig(agent=AgentConfig(agent="codex", model="gpt-5.3-codex")),
+        workdir=tmp_path,
+    )
+
+    assert commands == [
+        [
+            "codex",
+            "exec",
+            "--model",
+            "gpt-5.3-codex",
+            "--output-schema",
+            str(tmp_path / "codex-output-schema.json"),
+            "--output-last-message",
+            str(tmp_path / "codex-output.json"),
+            "--sandbox",
+            "read-only",
+        ]
+    ]
+
+
 def test_run_codex_once_uses_custom_command_and_injects_output_flags(
     tmp_path: Path,
     monkeypatch,
@@ -118,6 +161,66 @@ def test_run_codex_once_uses_custom_command_and_injects_output_flags(
     assert "--output-last-message" in command
     assert "--sandbox" in command
     assert "read-only" in command
+
+
+def test_run_codex_once_custom_command_rewrites_model_from_config(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Configured model should replace any existing custom codex model flag."""
+    commands: list[list[str]] = []
+
+    def _run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        _write_output_from_command(command, '{"summary_markdown":"ok","findings":[]}')
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _run)
+
+    config = AppConfig(
+        agent=AgentConfig(
+            agent="codex",
+            model="gpt-5.3-codex",
+            codex_command="codex exec --model gpt-4.1",
+        )
+    )
+    run_codex_once("prompt-text", config, workdir=tmp_path)
+
+    command = commands[0]
+    assert command[:2] == ["codex", "exec"]
+    assert "--model" in command
+    assert "gpt-5.3-codex" in command
+    assert "gpt-4.1" not in command
+
+
+def test_run_codex_once_custom_command_rewrites_short_model_flag_from_config(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Configured model should replace any existing short codex model flag."""
+    commands: list[list[str]] = []
+
+    def _run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        _write_output_from_command(command, '{"summary_markdown":"ok","findings":[]}')
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _run)
+
+    config = AppConfig(
+        agent=AgentConfig(
+            agent="codex",
+            model="gpt-5.3-codex",
+            codex_command="codex exec -m gpt-4.1",
+        )
+    )
+    run_codex_once("prompt-text", config, workdir=tmp_path)
+
+    command = commands[0]
+    assert "--model" in command
+    assert "gpt-5.3-codex" in command
+    assert "-m" not in command
+    assert "gpt-4.1" not in command
 
 
 def test_run_codex_once_rejects_empty_custom_command(tmp_path: Path) -> None:

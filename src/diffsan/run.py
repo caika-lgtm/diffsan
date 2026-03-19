@@ -76,6 +76,7 @@ class RunOptions:
 
     ci: bool | None = None
     agent: Literal["cursor", "codex"] | None = None
+    model: str | None = None
     proxy_url: str | None = None
     dry_run: bool = False
     workdir: str | None = None
@@ -107,6 +108,7 @@ def run(options: RunOptions) -> RunResult:
         loaded_config = load_config(
             ci=options.ci,
             agent=options.agent,
+            model=options.model,
             proxy_url=options.proxy_url,
             workdir=options.workdir,
             note_timezone=options.note_timezone,

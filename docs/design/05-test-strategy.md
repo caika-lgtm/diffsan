@@ -107,6 +107,7 @@ Fixture guidance:
 **Example checks**
 
 - `max_diff_chars` overridden by env var is reflected in `AppConfig`.
+- `agent.model` follows precedence: CLI > env > file > defaults.
 - Unknown field behavior matches your policy (strict or permissive).
 
 ---
@@ -222,6 +223,8 @@ Fixture guidance:
 
 - Attempt 1 returns invalid JSON -> repair attempt succeeds -> returns validated `ReviewOutput`.
 - Attempt N exhaustion -> raises `AGENT_OUTPUT_INVALID` and writes all raw outputs to artifacts.
+- Default command includes `--model` when `agent.model` is configured.
+- Custom `agent.cursor_command` rewrites `--model` when `agent.model` is configured.
 
 **Timing tests**
 
@@ -246,6 +249,8 @@ Fixture guidance:
 
 - Default command writes schema/output files and reads structured payload from `--output-last-message`.
 - Custom command behavior preserves user flags while wiring output schema/message flags.
+- Default command includes `--model` when `agent.model` is configured.
+- Custom command rewrites `--model` and `-m` when `agent.model` is configured.
 - Missing/empty output file and non-zero exit map to `AGENT_EXEC_FAILED`.
 
 ---

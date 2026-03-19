@@ -22,6 +22,7 @@ Current CLI overrides:
 
 - `--ci/--no-ci` overrides `mode.ci`
 - `--agent <cursor|codex>` overrides `agent.agent`
+- `--model <model>` overrides `agent.model`
 - `--proxy-url <url>` overrides `agent.proxy_url` (Codex only)
 - `--config <path>` selects the TOML config file to load
 
@@ -70,6 +71,7 @@ Examples:
 export DIFFSAN_WORKDIR=".ai-review"
 export DIFFSAN_MODE__CI="true"
 export DIFFSAN_AGENT__AGENT="codex"
+export DIFFSAN_AGENT__MODEL="gpt-5.3-codex"
 export DIFFSAN_AGENT__PROXY_URL="https://proxy.example.com/v1"
 export DIFFSAN_TRUNCATION__INCLUDE_EXTENSIONS='[".py",".ts"]'
 export DIFFSAN_SECRETS__EXTRA_PATTERNS='["ghp_[A-Za-z0-9]{36}"]'
@@ -83,6 +85,7 @@ Current `diffsan` CLI flags:
 | --- | --- |
 | `--ci/--no-ci` | Overrides `mode.ci` |
 | `--agent <cursor|codex>` | Overrides `agent.agent` |
+| `--model <model>` | Overrides `agent.model` |
 | `--proxy-url <url>` | Overrides `agent.proxy_url` for Codex runs |
 | `--config <path>` | Selects the TOML config file |
 | `--dry-run` | Runs the no-op harness and writes run artifacts without executing the review pipeline |
@@ -142,6 +145,7 @@ Current `diffsan` CLI flags:
 | Key | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `agent.agent` | `"cursor" \| "codex"` | `cursor` | Selects the agent backend. |
+| `agent.model` | `str \| null` | `null` | Optional model name passed to the selected agent CLI. |
 | `agent.cursor_command` | `str \| null` | `null` | Custom Cursor command. If omitted, diffsan uses the built-in default. |
 | `agent.codex_command` | `str \| null` | `null` | Custom Codex command. If omitted, diffsan uses the built-in default. |
 | `agent.proxy_url` | `str \| null` | `null` | Codex-only proxy URL. When set, diffsan updates `~/.codex/config.toml` before invoking Codex. |
@@ -198,6 +202,12 @@ If `agent.cursor_command` is unset, diffsan runs:
 cursor-agent --print --output-format json --trust
 ```
 
+If `agent.model` is set, diffsan injects:
+
+```bash
+--model <value>
+```
+
 If `CURSOR_API_KEY` is set, diffsan inserts:
 
 ```bash
@@ -212,6 +222,8 @@ If you provide a custom `agent.cursor_command` and it does not already include o
 
 Sensitive argument values such as API keys are redacted from persisted error context.
 
+If you provide both `agent.model` and a custom `agent.cursor_command`, diffsan rewrites any existing `--model` flag in the custom command so the configured `agent.model` wins.
+
 ### Codex
 
 If `agent.codex_command` is unset, diffsan runs:
@@ -223,9 +235,11 @@ codex exec --output-schema <workdir>/codex-output-schema.json --output-last-mess
 Current Codex behavior:
 
 - The prompt is passed on stdin.
+- If `agent.model` is set, diffsan injects `--model <value>`.
 - diffsan always writes the output schema to `<workdir>/codex-output-schema.json`.
 - diffsan always reads structured JSON from `<workdir>/codex-output.json`.
 - If a custom command already includes `--output-schema` or `--output-last-message`, diffsan rewrites those flags to point at the workdir artifacts.
+- If `agent.model` is set, diffsan rewrites any existing custom Codex model flag (`--model` or `-m`) so the configured `agent.model` wins.
 - If a custom command does not include a sandbox value, diffsan inserts `--sandbox read-only`.
 - If a custom command already provides a sandbox value, diffsan preserves it.
 - If `agent.proxy_url` is set, diffsan rewrites `~/.codex/config.toml` before invoking Codex:

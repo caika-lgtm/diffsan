@@ -108,11 +108,18 @@ def test_load_config_cli_overrides_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DIFFSAN_MODE__CI", "true")
     monkeypatch.setenv("DIFFSAN_WORKDIR", ".from-env")
     monkeypatch.setenv("DIFFSAN_AGENT__AGENT", "codex")
+    monkeypatch.setenv("DIFFSAN_AGENT__MODEL", "gpt-4.1")
 
-    loaded = load_config(ci=False, agent="cursor", workdir=".from-cli")
+    loaded = load_config(
+        ci=False,
+        agent="cursor",
+        model="gpt-5.3-codex",
+        workdir=".from-cli",
+    )
 
     assert loaded.config.mode.ci is False
     assert loaded.config.agent.agent == "cursor"
+    assert loaded.config.agent.model == "gpt-5.3-codex"
     assert loaded.config.workdir == ".from-cli"
 
 
@@ -326,6 +333,27 @@ def test_load_config_supports_codex_agent_and_command_from_file(
     assert loaded.config.agent.codex_command == "codex exec --model gpt-5"
 
 
+def test_load_config_supports_agent_model_from_file(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / DEFAULT_CONFIG_FILE).write_text(
+        "\n".join(
+            [
+                "[agent]",
+                'model = "gpt-5.3-codex"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = load_config()
+
+    assert loaded.config.agent.model == "gpt-5.3-codex"
+
+
 def test_load_config_supports_codex_agent_overrides_from_env(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
@@ -339,6 +367,19 @@ def test_load_config_supports_codex_agent_overrides_from_env(
 
     assert loaded.config.agent.agent == "codex"
     assert loaded.config.agent.codex_command == "codex exec --model gpt-5"
+
+
+def test_load_config_supports_agent_model_from_env(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DIFFSAN_AGENT__MODEL", "gpt-5.3-codex")
+
+    loaded = load_config()
+
+    assert loaded.config.agent.model == "gpt-5.3-codex"
 
 
 def test_load_config_supports_codex_proxy_url_from_env(
@@ -368,6 +409,28 @@ def test_load_config_cli_proxy_url_override_wins_over_env(
     loaded = load_config(agent="codex", proxy_url="https://cli.example.com/v1")
 
     assert loaded.config.agent.proxy_url == "https://cli.example.com/v1"
+
+
+def test_load_config_cli_model_override_wins_over_env_and_file(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / DEFAULT_CONFIG_FILE).write_text(
+        "\n".join(
+            [
+                "[agent]",
+                'model = "gpt-4.1"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DIFFSAN_AGENT__MODEL", "gpt-4.5")
+
+    loaded = load_config(model="gpt-5.3-codex")
+
+    assert loaded.config.agent.model == "gpt-5.3-codex"
 
 
 def test_load_config_rejects_proxy_url_for_cursor_agent(
