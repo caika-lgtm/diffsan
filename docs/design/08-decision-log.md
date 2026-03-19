@@ -171,3 +171,11 @@ When changing a decision, add a new entry (do not rewrite history).
 **Decision:** Keep schema-in-prompt + JSON repair retries for Cursor, but omit those sections and retries for Codex.
 **Why:** Cursor is unstructured and needs repair loops; Codex supports schema-constrained output files.
 **Implications:** Prompt builder and run pipeline branch by agent; output still passes through shared `parse_and_validate` before posting.
+
+---
+
+## D022 — Standalone diff source is local unstaged `git diff`
+
+**Decision:** Implement standalone mode as the existing non-CI path: review the local unstaged working-tree diff from `git diff --no-color`.
+**Why:** This is the smallest useful standalone slice and avoids inventing new local review semantics.
+**Implications:** No MR variables are required; GitLab prior-context fetch and posting are disabled; an empty local diff is a clean skip with reason `NO_DIFF`.

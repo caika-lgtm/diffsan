@@ -114,3 +114,17 @@ def test_decide_skip_same_fingerprint_can_be_disabled() -> None:
     )
 
     assert decision.should_skip is False
+
+
+def test_decide_skip_standalone_empty_diff_creates_reason() -> None:
+    """Standalone runs with no diff should skip cleanly."""
+    decision = decide_skip(
+        config=AppConfig(),
+        mr_payload=None,
+        fingerprint=Fingerprint(value="c" * 64),
+        prior_digest=None,
+        diff_has_content=False,
+    )
+
+    assert decision.should_skip is True
+    assert decision.reasons[0].code == "NO_DIFF"

@@ -104,8 +104,9 @@ def test_cli_failure_writes_run_json_and_nonzero(
 def test_cli_non_ci_failure_prints_events(
     tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Non-CI runs still surface key error events in console output."""
+    """Standalone runs outside a git repo surface local diff fetch failures."""
     workdir = tmp_path / ".diffsan"
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("DIFFSAN_WORKDIR", str(workdir))
     result = runner.invoke(app, [])
 
@@ -114,7 +115,7 @@ def test_cli_non_ci_failure_prints_events(
     assert "[diffsan] config.loaded" in result.output
     assert "[diffsan] error.raised" in result.output
     assert "error_code=DIFF_FETCH_FAILED" in result.output
-    assert "supports CI mode only" in result.output
+    assert "standalone review" in result.output
     assert "[diffsan] run.finished | ok=False" in result.output
 
 

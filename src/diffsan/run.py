@@ -277,6 +277,7 @@ def _run_pipeline(
         mr_payload=mr_payload,
         fingerprint=fingerprint,
         prior_digest=prior_digest,
+        diff_has_content=bool(diff_bundle.raw_diff.strip()),
     )
     events.emit(
         EventName.SKIP_DECIDED,

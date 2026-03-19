@@ -103,7 +103,7 @@ Current `diffsan` CLI flags:
 
 | Key | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `mode.ci` | `bool` | `false` | Enables CI mode. Real diff acquisition currently only works in CI mode; `mode.ci = false` is not yet a full standalone review path. |
+| `mode.ci` | `bool` | `false` | Enables GitLab MR CI mode. When `false`, diffsan runs in standalone mode and reviews the local unstaged working-tree diff from `git diff --no-color`. |
 
 ### `limits`
 
@@ -134,8 +134,8 @@ Current `diffsan` CLI flags:
 
 | Key | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `skip.skip_on_auto_merge` | `bool` | `true` | Skip posting when MR auto-merge is detected. |
-| `skip.skip_on_same_fingerprint` | `bool` | `true` | Skip posting when the current diff fingerprint matches the latest prior diffsan fingerprint. |
+| `skip.skip_on_auto_merge` | `bool` | `true` | In CI mode, skip posting when MR auto-merge is detected. Ignored in standalone mode. |
+| `skip.skip_on_same_fingerprint` | `bool` | `true` | In CI mode, skip posting when the current diff fingerprint matches the latest prior diffsan fingerprint. Ignored in standalone mode because no prior MR context is fetched. |
 
 ### `agent`
 
@@ -358,7 +358,9 @@ retry_max = 5
 
 ## Practical Recommendations
 
-- Set `mode.ci = true` for real MR reviews.
+- Set `mode.ci = true` for GitLab MR reviews.
+- Leave `mode.ci = false` or omit `--ci` for standalone local review of `git diff`.
+- If standalone `git diff` is empty, diffsan exits successfully with a skip reason instead of running the agent.
 - Keep `workdir` inside the repository workspace so CI artifacts are easy to collect.
 - Prefer TOML for stable repo defaults, then use `DIFFSAN_*` env vars for CI-specific overrides.
 - Use `gitlab.project_id` and `gitlab.mr_iid` only when you cannot rely on GitLab CI variables.

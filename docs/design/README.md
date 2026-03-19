@@ -7,7 +7,7 @@ Agents and humans should treat these docs as the **source of truth** for require
 
 1. Obtain the MR diff against the target branch.
 2. Preprocess (ignore paths, prioritize code, truncate to limits, redact secrets).
-3. Decide whether to skip (MVP: skip on auto-merge).
+3. Decide whether to skip (CI: auto-merge or same fingerprint; standalone: empty local diff).
 4. Build a prompt and run an AI agent headlessly (Cursor default, Codex optional).
 5. Validate the agent output as strict JSON (Pydantic schema), with retry/repair for unstructured agents.
 6. Format and post:

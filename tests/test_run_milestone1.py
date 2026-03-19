@@ -1197,6 +1197,103 @@ def test_run_milestone5_same_fingerprint_skip_short_circuits_pipeline(
     )
 
 
+def test_run_standalone_writes_review_artifacts_without_gitlab(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Standalone runs should review locally and never touch GitLab."""
+    diff_bundle, prepared = _fixture_diff_and_prepared()
+    review = AgentReviewOutput(
+        summary_markdown="### Standalone summary",
+        findings=[],
+    )
+
+    def _run_cursor_once(prompt: str, config) -> AgentAttempt:
+        _ = prompt, config
+        return _agent_attempt(
+            raw_stdout="{}",
+            raw_stderr="",
+            exit_code=0,
+            duration_ms=1,
+        )
+
+    def _parse_and_validate(raw: str) -> AgentReviewOutput:
+        _ = raw
+        return review
+
+    def _print_summary_markdown(review: ReviewOutput) -> None:
+        _ = review
+
+    def _should_not_build_gitlab_client(_config) -> None:
+        raise AssertionError("no gitlab client in standalone mode")
+
+    _patch_pipeline_dependencies(
+        monkeypatch,
+        diff_bundle=diff_bundle,
+        prepared=prepared,
+    )
+    monkeypatch.setattr(run_module, "run_cursor_once", _run_cursor_once)
+    monkeypatch.setattr(run_module, "parse_and_validate", _parse_and_validate)
+    monkeypatch.setattr(run_module, "print_summary_markdown", _print_summary_markdown)
+    monkeypatch.setattr(run_module, "GitLabClient", _should_not_build_gitlab_client)
+
+    workdir = tmp_path / ".diffsan"
+    result = run_module.run(RunOptions(ci=False, dry_run=False, workdir=str(workdir)))
+
+    assert result.ok is True
+    assert result.skipped is False
+    assert (workdir / "prompt.txt").exists()
+    assert (workdir / "review.json").exists()
+    assert not (workdir / "post_plan.json").exists()
+    assert not (workdir / "post_results.json").exists()
+
+
+def test_run_standalone_empty_diff_skips_cleanly(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Empty standalone diffs should skip before prompt and agent stages."""
+    diff_bundle = DiffBundle(
+        source=DiffSource(ref=DiffRef()),
+        raw_diff="",
+        files=[],
+    )
+    prepared = PreparedDiff(
+        prepared_diff="",
+        truncation=TruncationReport(),
+        redaction=RedactionReport(enabled=True, found=False),
+        ignored_paths=[],
+        included_paths=[],
+    )
+
+    _patch_pipeline_dependencies(
+        monkeypatch,
+        diff_bundle=diff_bundle,
+        prepared=prepared,
+    )
+
+    def _should_not_run_cursor(*_args, **_kwargs):
+        raise AssertionError("no agent call")
+
+    def _should_not_build_gitlab_client(_config) -> None:
+        raise AssertionError("no gitlab client in standalone mode")
+
+    monkeypatch.setattr(run_module, "run_cursor_once", _should_not_run_cursor)
+    monkeypatch.setattr(run_module, "GitLabClient", _should_not_build_gitlab_client)
+
+    workdir = tmp_path / ".diffsan"
+    result = run_module.run(RunOptions(ci=False, dry_run=False, workdir=str(workdir)))
+
+    assert result.ok is True
+    assert result.skipped is True
+    assert result.skip_reasons[0].code == "NO_DIFF"
+    assert (workdir / "diff.raw.patch").read_text(encoding="utf-8") == ""
+    assert (workdir / "diff.prepared.patch").read_text(encoding="utf-8") == ""
+    assert (workdir / "prior_digest.json").exists()
+    assert not (workdir / "prompt.txt").exists()
+    assert not (workdir / "review.json").exists()
+
+
 def test_run_milestone5_prior_digest_is_injected_into_prompt_request(
     tmp_path: Path,
     monkeypatch,
