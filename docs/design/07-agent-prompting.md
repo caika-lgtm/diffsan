@@ -38,6 +38,17 @@ This document defines how `diffsan` builds prompts and handles agent output for 
 4. **Review instructions**
     - Prioritize correctness/security first
     - Keep comments concise and actionable
+    - Review only by static analysis of the provided diff/context; do not run
+      tests, execute code, install dependencies, or invoke tools
+    - `summary_markdown` must first summarize what changed in the reviewed diff
+    - If prior digest is present, `summary_markdown` must summarize what changed
+      since that prior digest rather than restating old context
+    - If findings exist, `summary_markdown` should briefly mention the most
+      important findings
+    - If no findings exist, `summary_markdown` should still describe the reviewed
+      changes and stop there
+    - Do not use `summary_markdown` to say what the agent did not do, did not
+      review, did not repeat, or did not find
     - Avoid repeating prior findings
     - Use line ranges; reference file paths exactly
 5. **Context flags**
@@ -202,6 +213,8 @@ Prompt must instruct:
 - Prefer fewer, higher-quality findings over many minor nits.
 - Avoid repeating anything present in the prior digest.
 - Do not re-assert unresolved prior issues (MVP requirement).
+- Do not state in `summary_markdown` that prior findings were skipped, not
+  repeated, or not found again.
 
 Suggested text:
 
@@ -227,6 +240,13 @@ Skill text must be short to avoid prompt bloat.
 
 ## Output quality notes (agent guidance)
 
+- `summary_markdown` should be useful even when there are no findings:
+    - summarize the changed code reviewed
+    - when prior digest context exists, summarize changes since the previous
+      digest
+    - mention findings only when findings exist
+    - avoid negative process statements such as “no findings were identified” or
+      “I did not repeat previous issues”
 - Each finding must be actionable and point to a specific file + line range.
 - Suggested patch is optional; include only when confident.
 - Use `severity` consistently:

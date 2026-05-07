@@ -296,7 +296,14 @@ class ReviewMeta(StrictModel):
 
 
 class AgentReviewOutput(StrictModel):
-    summary_markdown: str
+    summary_markdown: str = Field(
+        description=(
+            "Markdown summary that describes the reviewed diff changes, or the "
+            "changes since the prior digest when prior context is provided, and "
+            "briefly mentions important findings when findings exist. It should "
+            "not state what the review did not find or did not repeat."
+        )
+    )
     findings: list[Finding] = Field(default_factory=list)
 
 

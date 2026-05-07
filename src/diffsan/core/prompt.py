@@ -148,7 +148,28 @@ def _review_guidance(config: AppConfig) -> str:
         "- Keep findings concise and actionable.",
         "- Prefer fewer high-confidence findings over noisy nits.",
         "- Include exact file paths and integer line ranges.",
+        (
+            "- Review only by static analysis of the provided diff and context; "
+            "do not run tests, execute code, install dependencies, or invoke tools."
+        ),
         "- Avoid repeating prior findings unless the code changed materially.",
+        ("- In summary_markdown, first summarize what changed in the reviewed diff."),
+        (
+            "- If a prior digest is provided, summarize what changed since that "
+            "prior digest instead of restating older context."
+        ),
+        (
+            "- If findings exist, mention the most important findings briefly in "
+            "summary_markdown."
+        ),
+        (
+            "- If no findings exist, summary_markdown should still describe the "
+            "reviewed changes and stop there."
+        ),
+        (
+            "- Do not use summary_markdown to say what you did not do, did not "
+            "review, did not repeat, or did not find."
+        ),
         f"- Requested verbosity: {config.agent.verbosity}.",
     ]
     if config.agent.skills:
@@ -183,8 +204,16 @@ def _context_flags(prepared: PreparedDiff) -> str:
 
 def _prior_digest_text(prior_digest: PriorDigest) -> str:
     lines = [
+        (
+            "Use this prior context to distinguish newly reviewed changes from "
+            "older review state."
+        ),
         "Do NOT repeat these findings unless the code changed substantially.",
         "Do NOT re-assert unresolved issues.",
+        (
+            "Do NOT say in summary_markdown that you avoided repeats or skipped "
+            "prior issues."
+        ),
     ]
     if prior_digest.prior_fingerprint is not None:
         lines.append(

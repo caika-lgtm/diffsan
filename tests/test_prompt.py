@@ -96,7 +96,31 @@ def test_build_agent_request_with_prior_truncation_and_redaction() -> None:
     assert "Truncation occurred: True." in request.prompt
     assert "Redaction occurred: True." in request.prompt
     assert "Some strings were redacted as [REDACTED]." in request.prompt
+    assert (
+        "Review only by static analysis of the provided diff and context; "
+        "do not run tests, execute code, install dependencies, or invoke tools."
+    ) in request.prompt
+    assert (
+        "In summary_markdown, first summarize what changed in the reviewed diff."
+        in request.prompt
+    )
+    assert (
+        "If a prior digest is provided, summarize what changed since that prior digest"
+        in request.prompt
+    )
+    assert (
+        "If findings exist, mention the most important findings briefly"
+        in request.prompt
+    )
+    assert (
+        "Do not use summary_markdown to say what you did not do, did not review, "
+        "did not repeat, or did not find."
+    ) in request.prompt
     assert "## Prior Digest" in request.prompt
+    assert (
+        "Do NOT say in summary_markdown that you avoided repeats or skipped "
+        "prior issues." in request.prompt
+    )
     assert "Previous review context" in request.prompt
     assert "[medium] a.py:10-12 Existing issue (f-1)" in request.prompt
     assert "Prior summaries:" in request.prompt
@@ -165,6 +189,7 @@ def test_build_agent_request_codex_omits_json_rules_and_schema() -> None:
     assert "## Schema" not in request.prompt
     assert "Return ONLY a JSON object." not in request.prompt
     assert "## Review Guidance" in request.prompt
+    assert "first summarize what changed in the reviewed diff" in request.prompt
     assert "## Prepared Diff" in request.prompt
     assert request.meta.agent == "codex"
 
