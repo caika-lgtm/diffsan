@@ -27,7 +27,12 @@ from diffsan.contracts.models import (
 )
 from diffsan.core.agent_codex import run_codex_once
 from diffsan.core.agent_cursor import AgentAttempt, run_cursor_once
-from diffsan.core.codex_config import configure_codex_proxy_model_provider
+from diffsan.core.codex_config import (
+    CodexConfigSnapshot,
+    capture_codex_config_snapshot,
+    restore_codex_config,
+    write_codex_proxy_model_provider,
+)
 from diffsan.core.config import load_config
 from diffsan.core.diff_provider import get_diff
 from diffsan.core.fingerprint import compute_fingerprint
@@ -456,43 +461,77 @@ def _run_codex_single_attempt(
     artifacts: ArtifactStore,
     events: EventLogger,
 ) -> ValidatedAgentOutput:
+    proxy_config_snapshot: CodexConfigSnapshot | None = None
     if config.agent.proxy_url is not None:
-        configure_codex_proxy_model_provider(config.agent.proxy_url)
+        proxy_config_snapshot = capture_codex_config_snapshot()
+        try:
+            write_codex_proxy_model_provider(
+                proxy_config_snapshot,
+                config.agent.proxy_url,
+            )
+        except ReviewerError:
+            _restore_codex_config_after_proxy(
+                snapshot=proxy_config_snapshot,
+                events=events,
+            )
+            raise
         print(
             "Codex proxy configured. Set DIFFSAN_OPENAI_API_KEY to authenticate "
             "the proxy provider."
         )
 
-    attempt = run_codex_once(
-        request_prompt,
-        config,
-        workdir=artifacts.workdir,
-        schema_filename=CODEX_OUTPUT_SCHEMA_ARTIFACT_NAME,
-        output_filename=CODEX_OUTPUT_ARTIFACT_NAME,
-    )
-    _write_attempt_artifacts(
-        artifacts=artifacts,
-        attempt_number=1,
-        attempt=attempt,
-    )
-    events.emit(
-        EventName.AGENT_ATTEMPT,
-        data={
-            "attempt": 1,
-            "exit_code": attempt.exit_code,
-            "duration_ms": attempt.duration_ms,
-        },
-    )
-    artifacts.write_text(RAW_OUTPUT_ARTIFACT_NAME, attempt.raw_stdout)
-    if attempt.raw_stderr:
-        artifacts.write_text(RAW_STDERR_ARTIFACT_NAME, attempt.raw_stderr)
+    try:
+        attempt = run_codex_once(
+            request_prompt,
+            config,
+            workdir=artifacts.workdir,
+            schema_filename=CODEX_OUTPUT_SCHEMA_ARTIFACT_NAME,
+            output_filename=CODEX_OUTPUT_ARTIFACT_NAME,
+        )
+        _write_attempt_artifacts(
+            artifacts=artifacts,
+            attempt_number=1,
+            attempt=attempt,
+        )
+        events.emit(
+            EventName.AGENT_ATTEMPT,
+            data={
+                "attempt": 1,
+                "exit_code": attempt.exit_code,
+                "duration_ms": attempt.duration_ms,
+            },
+        )
+        artifacts.write_text(RAW_OUTPUT_ARTIFACT_NAME, attempt.raw_stdout)
+        if attempt.raw_stderr:
+            artifacts.write_text(RAW_STDERR_ARTIFACT_NAME, attempt.raw_stderr)
 
-    review = parse_and_validate(attempt.raw_stdout)
-    return ValidatedAgentOutput(
-        summary_markdown=review.summary_markdown,
-        findings=review.findings,
-        attempt=attempt,
-    )
+        review = parse_and_validate(attempt.raw_stdout)
+        return ValidatedAgentOutput(
+            summary_markdown=review.summary_markdown,
+            findings=review.findings,
+            attempt=attempt,
+        )
+    finally:
+        if proxy_config_snapshot is not None:
+            _restore_codex_config_after_proxy(
+                snapshot=proxy_config_snapshot,
+                events=events,
+            )
+
+
+def _restore_codex_config_after_proxy(
+    *,
+    snapshot: CodexConfigSnapshot,
+    events: EventLogger,
+) -> None:
+    try:
+        restore_codex_config(snapshot)
+    except ReviewerError as exc:
+        events.emit(
+            "codex.config_restore_failed",
+            level=EventLevel.WARN,
+            data=exc.error_info.model_dump(mode="json"),
+        )
 
 
 def _write_attempt_artifacts(

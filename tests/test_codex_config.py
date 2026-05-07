@@ -7,7 +7,13 @@ from typing import TYPE_CHECKING
 import pytest
 
 from diffsan.contracts.errors import ErrorCode, ReviewerError
-from diffsan.core.codex_config import configure_codex_proxy_model_provider
+from diffsan.core.codex_config import (
+    CodexConfigSnapshot,
+    capture_codex_config_snapshot,
+    configure_codex_proxy_model_provider,
+    restore_codex_config,
+    write_codex_proxy_model_provider,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -132,5 +138,62 @@ def test_configure_codex_proxy_errors_for_directory_path(tmp_path: Path) -> None
             "https://proxy.example.com/v1",
             config_path=config_dir,
         )
+
+    assert exc_info.value.error_info.error_code == ErrorCode.AGENT_EXEC_FAILED
+
+
+def test_codex_config_snapshot_captures_existing_file(tmp_path: Path) -> None:
+    config_path = tmp_path / ".codex" / "config.toml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text('model_provider = "openai"\n', encoding="utf-8")
+
+    snapshot = capture_codex_config_snapshot(config_path=config_path)
+
+    assert snapshot.path == config_path
+    assert snapshot.existed is True
+    assert snapshot.contents == 'model_provider = "openai"\n'
+
+
+def test_restore_codex_config_restores_existing_file_exactly(tmp_path: Path) -> None:
+    config_path = tmp_path / ".codex" / "config.toml"
+    config_path.parent.mkdir(parents=True)
+    original = '# comment\nmodel_provider = "openai"\n'
+    config_path.write_text(original, encoding="utf-8")
+    snapshot = capture_codex_config_snapshot(config_path=config_path)
+
+    write_codex_proxy_model_provider(snapshot, "https://proxy.example.com/v1")
+    restore_codex_config(snapshot)
+
+    assert config_path.read_text(encoding="utf-8") == original
+
+
+def test_restore_codex_config_deletes_file_when_it_was_absent(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / ".codex" / "config.toml"
+    snapshot = capture_codex_config_snapshot(config_path=config_path)
+
+    write_codex_proxy_model_provider(snapshot, "https://proxy.example.com/v1")
+    restore_codex_config(snapshot)
+
+    assert not config_path.exists()
+
+
+def test_restore_codex_config_allows_missing_created_file(tmp_path: Path) -> None:
+    config_path = tmp_path / ".codex" / "config.toml"
+    snapshot = CodexConfigSnapshot(path=config_path, existed=False, contents="")
+
+    restore_codex_config(snapshot)
+
+    assert not config_path.exists()
+
+
+def test_restore_codex_config_errors_for_directory_path(tmp_path: Path) -> None:
+    config_dir = tmp_path / ".codex" / "config.toml"
+    config_dir.mkdir(parents=True)
+    snapshot = CodexConfigSnapshot(path=config_dir, existed=True, contents="original")
+
+    with pytest.raises(ReviewerError) as exc_info:
+        restore_codex_config(snapshot)
 
     assert exc_info.value.error_info.error_code == ErrorCode.AGENT_EXEC_FAILED
