@@ -1,0 +1,47 @@
+src/diffsan/core/prompt.py
+  s_c1c74c183640c1::t_e6b362e7aa3fcb 152
+  s_c1c74c183640c1::t_9cd149fc4bc5e4 203-206,209-212
+  s_c1c74c183640c1::t_5e4056f8e26ddb 153-168
+tests/test_prompt.py
+  s_c1c74c183640c1::t_1cbfb82b1702b9 99-114,116,119,188
+  s_c1c74c183640c1::t_6b9a89fd2fd000 117
+  s_c1c74c183640c1::t_e6b362e7aa3fcb 118
+tests/test_agent_codex.py
+  s_c1c74c183640c1::t_6a2da02b9486c6 63-66
+docs/design/07-agent-prompting.md
+  s_c1c74c183640c1::t_d45e40f92c774d 41-49,214-215,241-247
+src/diffsan/contracts/models.py
+  s_c1c74c183640c1::t_5ab6dcc92d7175 303-304
+  s_c1c74c183640c1::t_68106a9eda9620 299-302,305-306
+docs/design/02-contracts-and-schemas.md
+  s_c1c74c183640c1::t_de254038f33323 276-279
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "c761b588760ee5b4cca1ef4e5c58700db70e0ca0",
+  "prompts": {
+    "f33dd8c9fd998d69": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d05cd-69da-7b43-880e-caec1c39a844",
+        "model": "alpha-gpt-5.3-codex"
+      },
+      "human_author": "kaian <caika@sea.com>",
+      "total_additions": 2,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  },
+  "sessions": {
+    "s_c1c74c183640c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0075-6e97-7ca2-a048-a47edb1690d8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "kaian <caika@sea.com>"
+    }
+  }
+}
