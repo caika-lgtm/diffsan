@@ -122,7 +122,7 @@ Execution defaults for Codex CLI in diffsan:
 - No JSON repair retry loop is used for codex runs.
 - `max_json_retries` and `json_repair_prompt` are cursor-only controls.
 - If `agent.model` is set and a custom `agent.codex_command` already includes `--model` or `-m`, diffsan rewrites that flag so the configured model wins.
-- If `agent.proxy_url` is set, diffsan rewrites `~/.codex/config.toml` before execution so Codex uses `model_provider = "proxy"` and `env_key = "DIFFSAN_OPENAI_API_KEY"`.
+- If `agent.proxy_url` is set, diffsan temporarily rewrites `~/.codex/config.toml` before execution so Codex uses `model_provider = "proxy"` and `env_key = "DIFFSAN_OPENAI_API_KEY"`, then restores the prior config state after the Codex attempt. Restore failures are warning-only and do not change the review result.
 
 ### Retry loop rules
 

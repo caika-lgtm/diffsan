@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 from diffsan.contracts.errors import ErrorCode, ReviewerError
@@ -16,14 +17,33 @@ _HEADER_RE = re.compile(r"^\s*\[\[?([^\]]+)\]\]?\s*(?:#.*)?$")
 _MODEL_PROVIDER_RE = re.compile(r"^model_provider\s*=")
 
 
+@dataclass(frozen=True, slots=True)
+class CodexConfigSnapshot:
+    """Previously observed Codex config state for later restoration."""
+
+    path: Path
+    existed: bool
+    contents: str
+
+
 def configure_codex_proxy_model_provider(
     proxy_url: str,
     *,
     config_path: Path | None = None,
 ) -> Path:
     """Write the proxy model provider into the user's Codex config."""
-    path = config_path or (Path.home() / _CODEX_CONFIG_DIRNAME / _CODEX_CONFIG_FILENAME)
-    if path.exists() and path.is_dir():
+    snapshot = capture_codex_config_snapshot(config_path=config_path)
+    return write_codex_proxy_model_provider(snapshot, proxy_url)
+
+
+def capture_codex_config_snapshot(
+    *,
+    config_path: Path | None = None,
+) -> CodexConfigSnapshot:
+    """Capture the user's current Codex config state before temporary changes."""
+    path = _resolve_codex_config_path(config_path)
+    exists = path.exists()
+    if exists and path.is_dir():
         raise ReviewerError(
             "Codex config path points to a directory",
             error_code=ErrorCode.AGENT_EXEC_FAILED,
@@ -31,7 +51,7 @@ def configure_codex_proxy_model_provider(
         )
 
     try:
-        existing = path.read_text(encoding="utf-8") if path.exists() else ""
+        existing = path.read_text(encoding="utf-8") if exists else ""
     except OSError as exc:
         raise ReviewerError(
             "Failed to read Codex config file",
@@ -40,20 +60,53 @@ def configure_codex_proxy_model_provider(
             cause=exc,
         ) from exc
 
-    updated = _rewrite_codex_config(existing, proxy_url)
+    return CodexConfigSnapshot(
+        path=path,
+        existed=exists,
+        contents=existing,
+    )
+
+
+def write_codex_proxy_model_provider(
+    snapshot: CodexConfigSnapshot,
+    proxy_url: str,
+) -> Path:
+    """Write the proxy model provider using a previously captured config state."""
+    updated = _rewrite_codex_config(snapshot.contents, proxy_url)
 
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(updated, encoding="utf-8")
+        snapshot.path.parent.mkdir(parents=True, exist_ok=True)
+        snapshot.path.write_text(updated, encoding="utf-8")
     except OSError as exc:
         raise ReviewerError(
             "Failed to write Codex config file",
             error_code=ErrorCode.AGENT_EXEC_FAILED,
-            context={"config_path": str(path)},
+            context={"config_path": str(snapshot.path)},
             cause=exc,
         ) from exc
 
-    return path
+    return snapshot.path
+
+
+def restore_codex_config(snapshot: CodexConfigSnapshot) -> None:
+    """Restore the Codex config state captured before a temporary proxy write."""
+    try:
+        if snapshot.existed:
+            snapshot.path.parent.mkdir(parents=True, exist_ok=True)
+            snapshot.path.write_text(snapshot.contents, encoding="utf-8")
+            return
+        snapshot.path.unlink(missing_ok=True)
+    except OSError as exc:
+        raise ReviewerError(
+            "Failed to restore Codex config file",
+            error_code=ErrorCode.AGENT_EXEC_FAILED,
+            context={"config_path": str(snapshot.path)},
+            cause=exc,
+        ) from exc
+
+
+def _resolve_codex_config_path(config_path: Path | None) -> Path:
+    return config_path or (Path.home() / _CODEX_CONFIG_DIRNAME / _CODEX_CONFIG_FILENAME)
 
 
 def _rewrite_codex_config(existing: str, proxy_url: str) -> str:

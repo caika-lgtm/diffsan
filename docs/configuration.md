@@ -242,10 +242,12 @@ Current Codex behavior:
 - If `agent.model` is set, diffsan rewrites any existing custom Codex model flag (`--model` or `-m`) so the configured `agent.model` wins.
 - If a custom command does not include a sandbox value, diffsan inserts `--sandbox read-only`.
 - If a custom command already provides a sandbox value, diffsan preserves it.
-- If `agent.proxy_url` is set, diffsan rewrites `~/.codex/config.toml` before invoking Codex:
+- If `agent.proxy_url` is set, diffsan temporarily rewrites `~/.codex/config.toml` before invoking Codex:
   - sets top-level `model_provider = "proxy"`
   - writes a single `[model_providers.proxy]` block with the supplied `base_url`
   - sets `env_key = "DIFFSAN_OPENAI_API_KEY"`
+- After the Codex attempt, diffsan restores the prior `~/.codex/config.toml` state. If the file did not previously exist, diffsan deletes the temporary file it created.
+- If restoration fails, diffsan emits a warning but does not change the review result.
 - When proxy mode is used, diffsan prints a reminder to set `DIFFSAN_OPENAI_API_KEY`.
 
 ## Runtime Environment Outside `DIFFSAN_*`
@@ -289,7 +291,7 @@ These are used when available and are required unless you override with config w
 - Built-in Cursor command optionally reads `CURSOR_API_KEY`
 - Codex authentication is handled by the `codex` CLI itself unless `agent.proxy_url` is set
 
-If `agent.proxy_url` is set, diffsan configures Codex with:
+If `agent.proxy_url` is set, diffsan temporarily configures Codex with:
 
 ```toml
 [model_providers.proxy]
@@ -303,6 +305,8 @@ For proxy-backed Codex runs, you must provide:
 ```bash
 export DIFFSAN_OPENAI_API_KEY="..."
 ```
+
+After Codex finishes or fails, diffsan restores the previous Codex config file contents. If no config file existed before proxy setup, the temporary config file is removed.
 
 If `agent.proxy_url` is not set, any non-proxy Codex authentication still depends on your existing Codex CLI setup.
 
