@@ -31,6 +31,7 @@ def test_load_config_uses_defaults_without_file(
     assert loaded.config.note_timezone == AppConfig().note_timezone
     assert loaded.config.note_timezone
     assert loaded.config.mode.ci is False
+    assert loaded.config.agent.agent == "codex"
 
 
 def test_load_config_reads_default_file(
@@ -439,6 +440,7 @@ def test_load_config_rejects_proxy_url_for_cursor_agent(
 ) -> None:
     _clear_diffsan_env(monkeypatch)
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DIFFSAN_AGENT__AGENT", "cursor")
     monkeypatch.setenv("DIFFSAN_AGENT__PROXY_URL", "https://proxy.example.com/v1")
 
     with pytest.raises(ReviewerError) as exc_info:

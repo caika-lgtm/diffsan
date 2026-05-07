@@ -24,7 +24,11 @@ from diffsan.core.prompt import (
 def test_build_agent_request_with_prior_truncation_and_redaction() -> None:
     """Prompt includes schema, context flags, and prior digest details."""
     config = AppConfig(
-        agent=AgentConfig(verbosity="high", skills=["security", "python"]),
+        agent=AgentConfig(
+            agent="cursor",
+            verbosity="high",
+            skills=["security", "python"],
+        ),
     )
     prepared = PreparedDiff(
         prepared_diff="diff --git a/a.py b/a.py\n@@ -1 +1 @@\n-a\n+b\n",
@@ -144,7 +148,7 @@ def test_build_agent_request_with_prior_truncation_and_redaction() -> None:
 def test_build_agent_request_without_prior_or_flags() -> None:
     """Prompt omits optional sections when no prior digest/flags exist."""
     config = AppConfig(
-        agent=AgentConfig(verbosity="low", skills=[]),
+        agent=AgentConfig(agent="cursor", verbosity="low", skills=[]),
     )
     prepared = PreparedDiff(
         prepared_diff="diff --git a/a.py b/a.py\n",

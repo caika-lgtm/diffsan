@@ -90,6 +90,7 @@ def _patch_pipeline_dependencies(
     diff_bundle: DiffBundle,
     prepared: PreparedDiff,
     gitlab_client_cls: type | None = None,
+    agent: str | None = "cursor",
 ) -> None:
     def _get_diff(*, ci: bool) -> DiffBundle:
         _ = ci
@@ -125,6 +126,8 @@ def _patch_pipeline_dependencies(
         "GitLabClient",
         gitlab_client_cls or _FakeGitLabClient,
     )
+    if agent is not None:
+        monkeypatch.setenv("DIFFSAN_AGENT__AGENT", agent)
 
 
 class _FakeGitLabClient:
@@ -342,8 +345,8 @@ def test_run_codex_single_attempt_succeeds_without_retry_loop(
         monkeypatch,
         diff_bundle=diff_bundle,
         prepared=prepared,
+        agent=None,
     )
-    monkeypatch.setenv("DIFFSAN_AGENT__AGENT", "codex")
     review = AgentReviewOutput(summary_markdown="### Codex summary", findings=[])
 
     def _run_codex_once(prompt: str, config, **kwargs) -> AgentAttempt:

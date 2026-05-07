@@ -72,7 +72,7 @@ class SkipConfig(StrictModel):
 
 
 class AgentConfig(StrictModel):
-    agent: Literal["cursor", "codex"] = "cursor"
+    agent: Literal["cursor", "codex"] = "codex"
     model: str | None = None
     cursor_command: str | None = None
     codex_command: str | None = None
@@ -254,7 +254,7 @@ class AgentRequestMeta(StrictModel):
     fingerprint: Fingerprint | None = None
     truncation: TruncationReport | None = None
     redaction_found: bool = False
-    agent: str = "cursor"
+    agent: str = "codex"
     verbosity: Literal["low", "medium", "high"] = "medium"
     skills: list[str] = Field(default_factory=list)
 
@@ -288,7 +288,7 @@ class TimingMeta(StrictModel):
 
 class ReviewMeta(StrictModel):
     fingerprint: Fingerprint | None = None
-    agent: str = "cursor"
+    agent: str = "codex"
     timings: TimingMeta | None = None
     token_usage: dict[str, Any] = Field(default_factory=dict)
     truncated: bool = False
