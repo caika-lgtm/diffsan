@@ -8,7 +8,7 @@
     - a **collapsible truncation** section (what was truncated/excluded)
 - **Inline discussions** (per-finding comments) positioned on diffs when possible.
 
-Supported agents are **Cursor CLI** (default) and **Codex CLI**.
+Supported agents are **Codex CLI** (default) and **Cursor CLI**.
 
 ## Primary goals (priority order)
 
@@ -70,7 +70,7 @@ When `mode.ci = false`, `diffsan` runs inside a local git repository and reviews
 
 ## MVP v0 scope
 
-- Agent: Cursor CLI by default, Codex CLI optional
+- Agent: Codex CLI by default, Cursor CLI optional
 - GitLab posting: summary note + inline discussions (when position computable)
 - Skip: auto-merge true => silent skip (stdout only)
 - Fingerprint: sha256(raw diff)

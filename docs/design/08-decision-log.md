@@ -160,6 +160,7 @@ When changing a decision, add a new entry (do not rewrite history).
 
 ## D020 — Agent support: Cursor default plus Codex structured path
 
+**Status:** Superseded by D023.
 **Decision:** Support both Cursor CLI and Codex CLI, with Cursor as default.
 **Why:** Keep backward compatibility while enabling a structured-output backend.
 **Implications:** Config must select agent kind explicitly (`cursor` or `codex`); orchestrator dispatches to agent-specific runners.
@@ -179,3 +180,11 @@ When changing a decision, add a new entry (do not rewrite history).
 **Decision:** Implement standalone mode as the existing non-CI path: review the local unstaged working-tree diff from `git diff --no-color`.
 **Why:** This is the smallest useful standalone slice and avoids inventing new local review semantics.
 **Implications:** No MR variables are required; GitLab prior-context fetch and posting are disabled; an empty local diff is a clean skip with reason `NO_DIFF`.
+
+---
+
+## D023 — Codex is the default agent backend
+
+**Decision:** Default `agent.agent` to `codex`; Cursor remains available via `agent.agent = "cursor"` or `--agent cursor`.
+**Why:** Prefer the structured-output backend by default.
+**Implications:** Existing Cursor-based runs must opt into Cursor explicitly; Codex runs continue to validate the structured output before formatting/posting.

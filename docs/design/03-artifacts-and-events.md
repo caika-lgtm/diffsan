@@ -164,7 +164,7 @@ Fields:
     - `{"version": "...", "ci": true, "workdir": ".diffsan"}`
 
 - `config.loaded`
-    - minimal: `{"ci": true, "agent":"cursor", "verbosity":"medium"}`
+    - minimal: `{"ci": true, "agent":"codex", "verbosity":"medium"}`
 
 - `diff.fetched`
     - `{"chars":..., "files":..., "base_sha":"...", "head_sha":"..."}`

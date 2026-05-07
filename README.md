@@ -45,7 +45,7 @@
   - `codex`
 - GitLab API access via a token in the env var configured by `gitlab.token_env`
   (defaults to `GITLAB_TOKEN`)
-- If you use the default Cursor command, `CURSOR_API_KEY` must be set unless your
+- If you select the Cursor backend, `CURSOR_API_KEY` must be set unless your
   runner already has Cursor CLI auth configured
 
 For GitLab CI runs, `diffsan` reads MR context from the environment. In practice,
@@ -63,7 +63,7 @@ can use `CI_MERGE_REQUEST_SOURCE_BRANCH_NAME` plus
 ## Quick Start
 
 This guide assumes you are using GitLab, have at least the Maintainer role on the
-project, and plan to use the `codex` agent backend.
+project, and plan to use the default `codex` agent backend.
 
 1. Create a _Project Access Token_
 
@@ -89,6 +89,7 @@ project, and plan to use the `codex` agent backend.
    You need to set the `OPENAI_API_KEY` environment variable.
 
    You can use the same project CI/CD variable flow as in step 2:
+
    - `Key`: `OPENAI_API_KEY`
    - `Value`: your OpenAI API key
 
@@ -116,7 +117,7 @@ project, and plan to use the `codex` agent backend.
        - codex --version
      script:
        - export PATH="$HOME/.local/bin:$PATH"
-       - pipx run --spec "git+https://github.com/caika-lgtm/diffsan.git@main" diffsan --ci --agent codex
+       - pipx run --spec "git+https://github.com/caika-lgtm/diffsan.git@main" diffsan --ci
      artifacts:
        when: always
        paths:

@@ -144,7 +144,7 @@ Current `diffsan` CLI flags:
 
 | Key | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `agent.agent` | `"cursor" \| "codex"` | `cursor` | Selects the agent backend. |
+| `agent.agent` | `"cursor" \| "codex"` | `codex` | Selects the agent backend. |
 | `agent.model` | `str \| null` | `null` | Optional model name passed to the selected agent CLI. |
 | `agent.cursor_command` | `str \| null` | `null` | Custom Cursor command. If omitted, diffsan uses the built-in default. |
 | `agent.codex_command` | `str \| null` | `null` | Custom Codex command. If omitted, diffsan uses the built-in default. |
@@ -286,7 +286,7 @@ These are used when available and are required unless you override with config w
 
 ### Agent authentication
 
-- Cursor default command optionally reads `CURSOR_API_KEY`
+- Built-in Cursor command optionally reads `CURSOR_API_KEY`
 - Codex authentication is handled by the `codex` CLI itself unless `agent.proxy_url` is set
 
 If `agent.proxy_url` is set, diffsan configures Codex with:
@@ -357,10 +357,8 @@ skip_on_auto_merge = true
 skip_on_same_fingerprint = true
 
 [agent]
-agent = "cursor"
 verbosity = "high"
 skills = ["security", "testing"]
-max_json_retries = 3
 
 [gitlab]
 enabled = true

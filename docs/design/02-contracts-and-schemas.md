@@ -67,7 +67,7 @@ Fields are grouped for clarity. Exact defaults are implementation-defined but sh
     "skip_on_same_fingerprint": true
   },
   "agent": {
-    "agent": "cursor",
+    "agent": "codex",
     "model": null,
     "cursor_command": null,
     "codex_command": null,
@@ -262,7 +262,7 @@ Contains the prompt plus metadata used for artifacts/logging.
     "fingerprint": { "algo": "sha256", "value": "b7d4..." },
     "truncation": { "truncated": true, "...": "..." },
     "redaction_found": false,
-    "agent": "cursor",
+    "agent": "codex",
     "verbosity": "high",
     "skills": ["security", "python"]
   }
