@@ -60,6 +60,10 @@ def test_run_codex_once_uses_default_command_and_reads_output(
     schema_text = (tmp_path / "codex-output-schema.json").read_text(encoding="utf-8")
     schema_payload = json.loads(schema_text)
     assert '"title": "AgentReviewOutput"' in schema_text
+    assert (
+        "not state what the review did not find or did not repeat"
+        in schema_payload["properties"]["summary_markdown"]["description"]
+    )
     assert schema_payload["additionalProperties"] is False
     assert set(schema_payload["required"]) == set(schema_payload["properties"].keys())
     finding_schema = schema_payload["$defs"]["Finding"]

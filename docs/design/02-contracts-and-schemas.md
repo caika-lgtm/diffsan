@@ -273,6 +273,10 @@ Contains the prompt plus metadata used for artifacts/logging.
 
 - Cursor path is unstructured, so diffsan validates and may retry/repair.
 - Codex path uses `--output-schema` structured output, and diffsan still validates before continuing.
+- `summary_markdown` should summarize the reviewed diff changes. When prior
+  digest context is present, it should summarize changes since that prior digest.
+  It should mention important findings when findings exist, but should not state
+  what the review did not find or did not repeat.
 
 ```json
 {
