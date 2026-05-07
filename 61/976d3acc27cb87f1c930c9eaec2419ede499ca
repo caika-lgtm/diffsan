@@ -1,0 +1,37 @@
+docs/design/02-contracts-and-schemas.md
+  s_c1c74c183640c1::t_de254038f33323 276-279
+tests/test_prompt.py
+  s_c1c74c183640c1::t_6b9a89fd2fd000 121
+  s_c1c74c183640c1::t_1cbfb82b1702b9 99,104-118,120,123,192
+  s_c1c74c183640c1::t_8c00b2e638177f 100-103
+  s_c1c74c183640c1::t_e6b362e7aa3fcb 122
+src/diffsan/contracts/models.py
+  s_c1c74c183640c1::t_68106a9eda9620 299-302,305-306
+  s_c1c74c183640c1::t_5ab6dcc92d7175 303-304
+docs/design/07-agent-prompting.md
+  s_c1c74c183640c1::t_d45e40f92c774d 43-51,216-217,243-249
+  s_c1c74c183640c1::t_44273b1f45097e 41-42
+tests/test_agent_codex.py
+  s_c1c74c183640c1::t_6a2da02b9486c6 63-66
+src/diffsan/core/prompt.py
+  s_c1c74c183640c1::t_fe3b0a2bdfc38a 151-154
+  s_c1c74c183640c1::t_5e4056f8e26ddb 157-172
+  s_c1c74c183640c1::t_e6b362e7aa3fcb 156
+  s_c1c74c183640c1::t_9cd149fc4bc5e4 207-210,213-216
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "61976d3acc27cb87f1c930c9eaec2419ede499ca",
+  "prompts": {},
+  "sessions": {
+    "s_c1c74c183640c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0075-6e97-7ca2-a048-a47edb1690d8",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
