@@ -1,0 +1,44 @@
+src/diffsan/contracts/models.py
+  s_c1913a5bd26dd4::t_f422bc56845d41 75,257,291
+tests/test_config.py
+  s_c1913a5bd26dd4::t_657e295894de1d 34,443
+docs/design/03-artifacts-and-events.md
+  s_c1913a5bd26dd4::t_b0aeae534908f2 167
+docs/design/02-contracts-and-schemas.md
+  s_c1913a5bd26dd4::t_ce14755da2f3ed 70,265
+docs/index.md
+  s_c1913a5bd26dd4::t_b876340e81b751 50,68
+  s_c1913a5bd26dd4::t_15e91a2a2068c2 122
+docs/design/README.md
+  s_c1913a5bd26dd4::t_ceddf5bb62f9f7 11
+README.md
+  s_c1913a5bd26dd4::t_cc5f8f1e11974e 92,120
+  s_c1913a5bd26dd4::t_6f85c9798a5812 48,66
+tests/test_run_milestone1.py
+  s_c1913a5bd26dd4::t_8050f589e384e1 93,129-130,348
+docs/design/08-decision-log.md
+  s_c1913a5bd26dd4::t_5e4c8085150283 163,183-190
+docs/configuration.md
+  s_c1913a5bd26dd4::t_b2c09c42759416 289
+  s_c1913a5bd26dd4::t_01702b9ab198c4 147
+tests/test_prompt.py
+  s_c1913a5bd26dd4::t_9f2ae297dac731 27-31,151
+docs/design/00-product-brief.md
+  s_c1913a5bd26dd4::t_62888e326ab4a9 11,73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "64664f4471b4e50edb126aacde53316a6ade9676",
+  "prompts": {},
+  "sessions": {
+    "s_c1913a5bd26dd4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0088-da73-7462-8508-ff077b9f2d2c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "kaian <caika@sea.com>"
+    }
+  }
+}
