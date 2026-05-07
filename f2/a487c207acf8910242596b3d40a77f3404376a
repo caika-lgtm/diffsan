@@ -1,0 +1,32 @@
+tests/test_run_milestone1.py
+  s_622c84c628b9f6::t_9b1ef00d21bd5b 577,603-762,764-767
+  s_622c84c628b9f6::t_1c5fc5f630bb47 763
+  s_622c84c628b9f6::t_32e48ec4545f44 474,483-488,493-495,516,549,579,585,779
+src/diffsan/run.py
+  s_622c84c628b9f6::t_12e990fa0d5d07 30-35,464,466-477,483-506,508-534
+tests/test_codex_config.py
+  s_622c84c628b9f6::t_1f3e38c0041465 10-16,143-197
+docs/configuration.md
+  s_622c84c628b9f6::t_5df2796b09f5ee 245,249-250,294,309
+src/diffsan/core/codex_config.py
+  s_622c84c628b9f6::t_78f7153e6b3ca9 7,20-28,35-44,63-64,66-75,78-79,84,88-109
+  s_622c84c628b9f6::t_ea605d95b6c6af 45-46,54,65
+docs/design/07-agent-prompting.md
+  s_622c84c628b9f6::t_c747e297a5982f 125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "f2a487c207acf8910242596b3d40a77f3404376a",
+  "prompts": {},
+  "sessions": {
+    "s_622c84c628b9f6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0094-95c7-7840-abb4-b5896356dcf9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "kaian <caika@sea.com>"
+    }
+  }
+}
