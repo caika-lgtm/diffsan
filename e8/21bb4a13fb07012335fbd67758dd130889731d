@@ -1,0 +1,19 @@
+pyproject.toml
+  s_82c3457aeca36b::t_3fa8be6106eb20 36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "e821bb4a13fb07012335fbd67758dd130889731d",
+  "prompts": {},
+  "sessions": {
+    "s_82c3457aeca36b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e06f3-99ae-7323-a2c9-7c0146e07342",
+        "model": "gpt-5.5"
+      },
+      "human_author": "kaian <caika@sea.com>"
+    }
+  }
+}
