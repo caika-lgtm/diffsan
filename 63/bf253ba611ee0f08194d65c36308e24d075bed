@@ -1,0 +1,42 @@
+src/diffsan/core/config.py
+  s_1fafc3ea5cc0f1::t_382810b3d86c86 108,118-153
+docs/design/00-product-brief.md
+  s_1fafc3ea5cc0f1::t_b0dbecb7cffe72 17
+docs/configuration.md
+  s_1fafc3ea5cc0f1::t_160ed200b2a7bd 76-77,157-158,367-371,390
+src/diffsan/contracts/models.py
+  s_1fafc3ea5cc0f1::t_1ece9bedda77af 83-84,259-260
+docs/design/02-contracts-and-schemas.md
+  s_1fafc3ea5cc0f1::t_91a709350044c6 78-79,267-268
+src/diffsan/core/prompt.py
+  s_1fafc3ea5cc0f1::t_059c5066fd5f2b 18,70-71,90-95,98,110,113-114,188-200,203,217
+src/diffsan/run.py
+  s_1fafc3ea5cc0f1::t_9efaf955ef3c1a 347
+tests/test_config.py
+  s_1fafc3ea5cc0f1::t_b9c43de1986f09 358-446
+  s_1fafc3ea5cc0f1::t_538c309cc9bb5f 447-460
+src/diffsan/core/preprocess.py
+  s_1fafc3ea5cc0f1::t_259bedf9b84769 129-138
+docs/design/07-agent-prompting.md
+  s_1fafc3ea5cc0f1::t_aaf8e1fc8ff162 27,54-59,62,66,231,233-234,236-242
+docs/design/05-test-strategy.md
+  s_1fafc3ea5cc0f1::t_0eff7d5f1dee64 210,213-214
+tests/test_prompt.py
+  s_1fafc3ea5cc0f1::t_c338356c1f1f90 30-33,144-146,150,156,173,181-185,206-207,210-240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "63bf253ba611ee0f08194d65c36308e24d075bed",
+  "prompts": {},
+  "sessions": {
+    "s_1fafc3ea5cc0f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e06ad-eed7-7491-86bc-c5821f014d8c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "kaian <caika@sea.com>"
+    }
+  }
+}
