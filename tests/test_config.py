@@ -355,6 +355,109 @@ def test_load_config_supports_agent_model_from_file(
     assert loaded.config.agent.model == "gpt-5.3-codex"
 
 
+def test_load_config_supports_custom_instructions_from_file(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "review-conventions.md").write_text(
+        "File conventions.", encoding="utf-8"
+    )
+    (tmp_path / DEFAULT_CONFIG_FILE).write_text(
+        "\n".join(
+            [
+                "[agent]",
+                'custom_instructions_file = "review-conventions.md"',
+                'custom_instructions = "Inline conventions."',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = load_config()
+
+    assert loaded.config.agent.custom_instructions == (
+        "File conventions.\n\nInline conventions."
+    )
+    assert loaded.config.agent.custom_instructions_file == "review-conventions.md"
+
+
+def test_load_config_supports_custom_instructions_from_env(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv(
+        "DIFFSAN_AGENT__CUSTOM_INSTRUCTIONS",
+        "Follow codebase conventions.",
+    )
+
+    loaded = load_config()
+
+    assert loaded.config.agent.custom_instructions == "Follow codebase conventions."
+
+
+def test_load_config_errors_for_missing_custom_instructions_file(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / DEFAULT_CONFIG_FILE).write_text(
+        "\n".join(
+            [
+                "[agent]",
+                'custom_instructions_file = "missing.md"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ReviewerError) as exc_info:
+        load_config()
+
+    assert exc_info.value.error_info.error_code == ErrorCode.CONFIG_PARSE_ERROR
+
+
+def test_load_config_rejects_removed_prompt_customization_keys(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / DEFAULT_CONFIG_FILE).write_text(
+        "\n".join(
+            [
+                "[agent]",
+                'skills = ["security"]',
+                'prompt_template = "template"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ReviewerError) as exc_info:
+        load_config()
+
+    assert exc_info.value.error_info.error_code == ErrorCode.CONFIG_PARSE_ERROR
+
+
+def test_load_config_rejects_removed_prompt_customization_env_keys(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_diffsan_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DIFFSAN_AGENT__SKILLS", '["security"]')
+
+    with pytest.raises(ReviewerError) as exc_info:
+        load_config()
+
+    assert exc_info.value.error_info.error_code == ErrorCode.CONFIG_PARSE_ERROR
+
+
 def test_load_config_supports_codex_agent_overrides_from_env(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,

@@ -24,7 +24,7 @@ This document defines how `diffsan` builds prompts and handles agent output for 
 - Truncation report: `TruncationReport`
 - Redaction flag: `redaction.found`
 - Prior digest: `PriorDigest` (prior findings + all previous summaries + all prior inline comments)
-- Config: verbosity + skills
+- Config: verbosity + custom instructions
 
 ### Prompt sections (recommended order)
 
@@ -51,14 +51,19 @@ This document defines how `diffsan` builds prompts and handles agent output for 
       review, did not repeat, or did not find
     - Avoid repeating prior findings
     - Use line ranges; reference file paths exactly
-5. **Context flags**
+5. **Custom instructions** (optional)
+    - User-provided markdown from `agent.custom_instructions_file` and/or
+      `agent.custom_instructions`
+    - File content appears before inline content
+    - Secret-like values are redacted before prompt artifact creation
+6. **Context flags**
     - Truncation: mention and require disclosure in summary
     - Redaction: mention redaction occurred if found
-6. **Prior digest**
+7. **Prior digest**
     - Provide minimal digest and explicit instruction:
      - “Do NOT repeat these unless the code changed substantially.”
      - “Do NOT re-assert unresolved issues.”
-7. **Prepared diff**
+8. **Prepared diff**
     - Include diff text
 
 ---
@@ -223,18 +228,18 @@ Suggested text:
 
 ---
 
-## Suggested “skills” mechanism (lightweight)
+## Custom instructions
 
-Skills are optional prompt additions. In MVP:
+Users can add project-specific review guidance without replacing diffsan's
+built-in safety and output-contract sections:
 
-- `skills` is a list of short identifiers.
-- diffsan maps skills to small prompt snippets (stored under `resources/prompts/skills/` later).
-- Example skills:
-    - `security`: focus on injection, auth, secrets, SSRF, etc.
-    - `python`: focus on typing, exceptions, idioms
-    - `testing`: focus on test coverage and cases
-
-Skill text must be short to avoid prompt bloat.
+- `agent.custom_instructions_file`: optional UTF-8 markdown/text file path,
+  resolved relative to the current working directory unless absolute.
+- `agent.custom_instructions`: optional inline text, appended after file content.
+- The combined text is injected as `## Custom Instructions`.
+- Missing, unreadable, or non-UTF-8 instruction files fail configuration
+  loading with `CONFIG_PARSE_ERROR`.
+- Removed keys `agent.skills` and `agent.prompt_template` are not supported.
 
 ---
 

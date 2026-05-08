@@ -80,8 +80,8 @@ class AgentConfig(StrictModel):
     max_json_retries: int = 3
     json_repair_prompt: str = "Return ONLY valid JSON that matches the schema."
     verbosity: Literal["low", "medium", "high"] = "medium"
-    skills: list[str] = Field(default_factory=list)
-    prompt_template: str | None = None
+    custom_instructions: str = ""
+    custom_instructions_file: str | None = None
 
     @model_validator(mode="after")
     def validate_codex_only_fields(self) -> AgentConfig:
@@ -256,7 +256,8 @@ class AgentRequestMeta(StrictModel):
     redaction_found: bool = False
     agent: str = "codex"
     verbosity: Literal["low", "medium", "high"] = "medium"
-    skills: list[str] = Field(default_factory=list)
+    custom_instructions_present: bool = False
+    custom_instructions_file: str | None = None
 
 
 class AgentRequest(StrictModel):

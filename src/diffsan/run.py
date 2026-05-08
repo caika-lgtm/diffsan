@@ -344,7 +344,7 @@ def _run_pipeline(
             ),
             token_usage={},
             truncated=prepared.truncation.truncated,
-            redaction_found=prepared.redaction.found,
+            redaction_found=request.meta.redaction_found,
         ),
     )
     _artifacts.write_json(REVIEW_ARTIFACT_NAME, review)

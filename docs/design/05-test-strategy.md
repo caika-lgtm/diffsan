@@ -207,9 +207,11 @@ Fixture guidance:
     - truncation disclosure + what was truncated (or instruction to include it)
     - redaction flag (if secrets found)
     - prior digest + “avoid repeating” instruction
-    - verbosity + skills if configured
+    - verbosity + custom instructions if configured
 
 - For codex prompts, assert schema and hard JSON-only sections are omitted.
+- Custom instruction files and inline custom instructions are injected in order,
+  with secret-like values redacted before `prompt.txt` is written.
 
 **Safety tests**
 

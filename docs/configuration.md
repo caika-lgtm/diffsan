@@ -73,6 +73,8 @@ export DIFFSAN_MODE__CI="true"
 export DIFFSAN_AGENT__AGENT="codex"
 export DIFFSAN_AGENT__MODEL="gpt-5.3-codex"
 export DIFFSAN_AGENT__PROXY_URL="https://proxy.example.com/v1"
+export DIFFSAN_AGENT__CUSTOM_INSTRUCTIONS="Follow repository review conventions."
+export DIFFSAN_AGENT__CUSTOM_INSTRUCTIONS_FILE="docs/review-conventions.md"
 export DIFFSAN_TRUNCATION__INCLUDE_EXTENSIONS='[".py",".ts"]'
 export DIFFSAN_SECRETS__EXTRA_PATTERNS='["ghp_[A-Za-z0-9]{36}"]'
 ```
@@ -152,8 +154,8 @@ Current `diffsan` CLI flags:
 | `agent.max_json_retries` | `int` | `3` | Maximum Cursor parse/repair attempts. Ignored for Codex runs. |
 | `agent.json_repair_prompt` | `str` | `Return ONLY valid JSON that matches the schema.` | Prefix text used when building Cursor repair prompts. Ignored for Codex runs. |
 | `agent.verbosity` | `"low" \| "medium" \| "high"` | `medium` | Passed into prompt guidance. |
-| `agent.skills` | `list[str]` | `[]` | Passed into prompt guidance as lightweight review hints. |
-| `agent.prompt_template` | `str \| null` | `null` | Reserved in the schema, but not currently used by the prompt builder. |
+| `agent.custom_instructions` | `str` | `""` | Inline markdown/text injected as a dedicated `## Custom Instructions` prompt section. |
+| `agent.custom_instructions_file` | `str \| null` | `null` | UTF-8 markdown/text file whose content is injected before inline custom instructions. Relative paths resolve from the current working directory. |
 
 Validation rule:
 
@@ -362,7 +364,11 @@ skip_on_same_fingerprint = true
 
 [agent]
 verbosity = "high"
-skills = ["security", "testing"]
+custom_instructions_file = "docs/review-conventions.md"
+custom_instructions = """
+Pay special attention to auth checks, migrations, and API compatibility.
+Prefer findings that are actionable for this merge request.
+"""
 
 [gitlab]
 enabled = true
@@ -381,4 +387,4 @@ retry_max = 5
 - Prefer TOML for stable repo defaults, then use `DIFFSAN_*` env vars for CI-specific overrides.
 - Use `gitlab.project_id` and `gitlab.mr_iid` only when you cannot rely on GitLab CI variables.
 - Keep `gitlab.summary_note_tag` stable once you start using diffsan on a project, or prior-review detection will fragment.
-- Treat `agent.prompt_template`, `logging.level`, `logging.structured`, and `gitlab.idempotent_summary` as forward-looking knobs until their runtime behavior is implemented.
+- Treat `logging.level`, `logging.structured`, and `gitlab.idempotent_summary` as forward-looking knobs until their runtime behavior is implemented.
