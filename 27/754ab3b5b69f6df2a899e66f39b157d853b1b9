@@ -1,0 +1,21 @@
+mkdocs.yml
+  s_f9ce8aabaf1a46::t_e66ce0a2abe9da 42,63
+docs/api.md
+  s_f9ce8aabaf1a46::t_3df175c6f128fb 6,14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "27754ab3b5b69f6df2a899e66f39b157d853b1b9",
+  "prompts": {},
+  "sessions": {
+    "s_f9ce8aabaf1a46": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0700-9297-7b70-9dd9-cdcc9302691b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "kaian <caika@sea.com>"
+    }
+  }
+}
