@@ -14,7 +14,7 @@ Supported agents are **Codex CLI** (default) and **Cursor CLI**.
 
 1. Catch **correctness & security** issues in code changes.
 2. Improve maintainability/quality.
-3. Enforce project-specific conventions (“skills” / rules).
+3. Enforce project-specific conventions through custom review instructions.
 4. Speed up human review with good summaries and highlighted hotspots.
 
 ## Non-goals

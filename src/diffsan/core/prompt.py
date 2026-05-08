@@ -15,6 +15,7 @@ from diffsan.contracts.models import (
     PreparedDiff,
     PriorDigest,
 )
+from diffsan.core.preprocess import redact_text
 
 if TYPE_CHECKING:
     from diffsan.contracts.errors import ReviewerError
@@ -66,6 +67,8 @@ def build_agent_request(
     prior_digest: PriorDigest | None = None,
 ) -> AgentRequest:
     """Create the prompt and metadata for one agent attempt."""
+    custom_instructions, custom_redaction_found = _custom_instructions(config)
+    redaction_found = prepared.redaction.found or custom_redaction_found
     sections = ["## Role", _SYSTEM_TASK]
     if config.agent.agent == "cursor":
         schema = AgentReviewOutput.model_json_schema()
@@ -84,9 +87,15 @@ def build_agent_request(
             "",
             "## Review Guidance",
             _review_guidance(config),
+        ]
+    )
+    if custom_instructions:
+        sections.extend(["", "## Custom Instructions", custom_instructions])
+    sections.extend(
+        [
             "",
             "## Context Flags",
-            _context_flags(prepared),
+            _context_flags(prepared, redaction_found=redaction_found),
         ]
     )
     if prior_digest is not None:
@@ -98,10 +107,11 @@ def build_agent_request(
         meta=AgentRequestMeta(
             fingerprint=fingerprint,
             truncation=prepared.truncation,
-            redaction_found=prepared.redaction.found,
+            redaction_found=redaction_found,
             agent=config.agent.agent,
             verbosity=config.agent.verbosity,
-            skills=config.agent.skills,
+            custom_instructions_present=bool(custom_instructions),
+            custom_instructions_file=config.agent.custom_instructions_file,
         ),
     )
 
@@ -172,15 +182,25 @@ def _review_guidance(config: AppConfig) -> str:
         ),
         f"- Requested verbosity: {config.agent.verbosity}.",
     ]
-    if config.agent.skills:
-        lines.append(f"- Extra skills to apply: {', '.join(config.agent.skills)}.")
     return "\n".join(lines)
 
 
-def _context_flags(prepared: PreparedDiff) -> str:
+def _custom_instructions(config: AppConfig) -> tuple[str, bool]:
+    raw_instructions = config.agent.custom_instructions.strip()
+    if not raw_instructions:
+        return "", False
+    redacted, report = redact_text(
+        raw_instructions,
+        enabled=config.secrets.enabled,
+        extra_patterns=config.secrets.extra_patterns,
+    )
+    return redacted.strip(), report.found
+
+
+def _context_flags(prepared: PreparedDiff, *, redaction_found: bool) -> str:
     lines = [
         f"- Truncation occurred: {prepared.truncation.truncated}.",
-        f"- Redaction occurred: {prepared.redaction.found}.",
+        f"- Redaction occurred: {redaction_found}.",
     ]
     if prepared.truncation.truncated:
         lines.append(
@@ -194,7 +214,7 @@ def _context_flags(prepared: PreparedDiff) -> str:
             f"{prepared.truncation.original_files} -> "
             f"{prepared.truncation.final_files} files."
         )
-    if prepared.redaction.found:
+    if redaction_found:
         lines.append(
             "- Some strings were redacted as [REDACTED]. "
             "Do not attempt to infer hidden secret values."

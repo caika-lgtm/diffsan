@@ -126,6 +126,16 @@ def prepare_diff(diff: DiffBundle, config: AppConfig) -> PreparedDiff:
     )
 
 
+def redact_text(
+    text: str,
+    *,
+    enabled: bool,
+    extra_patterns: list[str],
+) -> tuple[str, RedactionReport]:
+    """Apply the shared secret redaction engine to non-diff prompt text."""
+    return _redact(text, enabled=enabled, extra_patterns=extra_patterns)
+
+
 def _split_blocks(raw_diff: str) -> list[_DiffFileBlock]:
     blocks: list[_DiffFileBlock] = []
     current: list[str] = []

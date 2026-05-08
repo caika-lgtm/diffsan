@@ -27,7 +27,10 @@ def test_build_agent_request_with_prior_truncation_and_redaction() -> None:
         agent=AgentConfig(
             agent="cursor",
             verbosity="high",
-            skills=["security", "python"],
+            custom_instructions=(
+                "Follow the repository service boundaries.\n"
+                "Flag missing docs for behavior changes."
+            ),
         ),
     )
     prepared = PreparedDiff(
@@ -138,17 +141,19 @@ def test_build_agent_request_with_prior_truncation_and_redaction() -> None:
         "[unresolved] [d-1/101] a.py:10 Please validate this branch." in request.prompt
     )
     assert "[resolved] [d-2/202] a.py:12 Fixed in follow-up commit." in request.prompt
-    assert "Extra skills to apply: security, python." in request.prompt
+    assert "## Custom Instructions" in request.prompt
+    assert "Follow the repository service boundaries." in request.prompt
+    assert "Flag missing docs for behavior changes." in request.prompt
     assert request.meta.fingerprint == fingerprint
     assert request.meta.redaction_found is True
     assert request.meta.verbosity == "high"
-    assert request.meta.skills == ["security", "python"]
+    assert request.meta.custom_instructions_present is True
 
 
 def test_build_agent_request_without_prior_or_flags() -> None:
     """Prompt omits optional sections when no prior digest/flags exist."""
     config = AppConfig(
-        agent=AgentConfig(agent="cursor", verbosity="low", skills=[]),
+        agent=AgentConfig(agent="cursor", verbosity="low"),
     )
     prepared = PreparedDiff(
         prepared_diff="diff --git a/a.py b/a.py\n",
@@ -165,15 +170,19 @@ def test_build_agent_request_without_prior_or_flags() -> None:
     )
 
     assert "## Prior Digest" not in request.prompt
+    assert "## Custom Instructions" not in request.prompt
     assert "Truncation occurred: False." in request.prompt
     assert "Redaction occurred: False." in request.prompt
-    assert "Extra skills to apply" not in request.prompt
 
 
 def test_build_agent_request_codex_omits_json_rules_and_schema() -> None:
     """Codex prompts should omit cursor-specific JSON-only scaffolding."""
     config = AppConfig(
-        agent=AgentConfig(agent="codex", verbosity="medium", skills=["security"]),
+        agent=AgentConfig(
+            agent="codex",
+            verbosity="medium",
+            custom_instructions="Check authz changes against existing conventions.",
+        ),
     )
     prepared = PreparedDiff(
         prepared_diff="diff --git a/a.py b/a.py\n@@ -1 +1 @@\n-a\n+b\n",
@@ -194,8 +203,41 @@ def test_build_agent_request_codex_omits_json_rules_and_schema() -> None:
     assert "Return ONLY a JSON object." not in request.prompt
     assert "## Review Guidance" in request.prompt
     assert "first summarize what changed in the reviewed diff" in request.prompt
+    assert "## Custom Instructions" in request.prompt
+    assert "Check authz changes against existing conventions." in request.prompt
     assert "## Prepared Diff" in request.prompt
     assert request.meta.agent == "codex"
+    assert request.meta.custom_instructions_present is True
+
+
+def test_build_agent_request_redacts_custom_instruction_secrets() -> None:
+    """Custom instructions are redacted before prompt artifact creation."""
+    config = AppConfig(
+        agent=AgentConfig(
+            agent="codex",
+            custom_instructions=(
+                'Never expose api_key = "super-secret-token-value" in logs.'
+            ),
+        ),
+    )
+    prepared = PreparedDiff(
+        prepared_diff="diff --git a/a.py b/a.py\n",
+        truncation=TruncationReport(truncated=False),
+        redaction=RedactionReport(enabled=True, found=False),
+        ignored_paths=[],
+        included_paths=["a.py"],
+    )
+
+    request = build_agent_request(
+        config=config,
+        prepared=prepared,
+        fingerprint=Fingerprint(value="e" * 64),
+    )
+
+    assert "super-secret-token-value" not in request.prompt
+    assert "[REDACTED]" in request.prompt
+    assert "Redaction occurred: True." in request.prompt
+    assert request.meta.redaction_found is True
 
 
 def test_build_json_repair_prompt_includes_errors_and_excerpt() -> None:

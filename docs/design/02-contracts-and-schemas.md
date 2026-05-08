@@ -75,8 +75,8 @@ Fields are grouped for clarity. Exact defaults are implementation-defined but sh
     "max_json_retries": 3,
     "json_repair_prompt": "Return ONLY valid JSON that matches the schema.",
     "verbosity": "medium",
-    "skills": [],
-    "prompt_template": null
+    "custom_instructions": "",
+    "custom_instructions_file": null
   },
   "gitlab": {
     "enabled": true,
@@ -264,7 +264,8 @@ Contains the prompt plus metadata used for artifacts/logging.
     "redaction_found": false,
     "agent": "codex",
     "verbosity": "high",
-    "skills": ["security", "python"]
+    "custom_instructions_present": true,
+    "custom_instructions_file": "docs/review-conventions.md"
   }
 }
 ```

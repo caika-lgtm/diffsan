@@ -105,12 +105,52 @@ def load_config(
             },
             cause=exc,
         ) from exc
+    config = _resolve_custom_instructions(config)
 
     return LoadedConfig(
         config=config,
         config_file=(
             str(resolved_config_file) if resolved_config_file is not None else None
         ),
+    )
+
+
+def _resolve_custom_instructions(config: AppConfig) -> AppConfig:
+    instruction_parts: list[str] = []
+    custom_instructions_file = config.agent.custom_instructions_file
+    if custom_instructions_file is not None:
+        path = Path(custom_instructions_file).expanduser()
+        try:
+            file_text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError as exc:
+            raise ReviewerError(
+                "Custom instructions file must be valid UTF-8 text",
+                error_code=ErrorCode.CONFIG_PARSE_ERROR,
+                context={"custom_instructions_file": str(path)},
+                cause=exc,
+            ) from exc
+        except OSError as exc:
+            raise ReviewerError(
+                "Failed to read custom instructions file",
+                error_code=ErrorCode.CONFIG_PARSE_ERROR,
+                context={"custom_instructions_file": str(path)},
+                cause=exc,
+            ) from exc
+        instruction_parts.append(file_text.strip())
+
+    inline_instructions = config.agent.custom_instructions.strip()
+    if inline_instructions:
+        instruction_parts.append(inline_instructions)
+
+    if not instruction_parts:
+        return config
+
+    return config.model_copy(
+        update={
+            "agent": config.agent.model_copy(
+                update={"custom_instructions": "\n\n".join(instruction_parts)}
+            )
+        }
     )
 
 
