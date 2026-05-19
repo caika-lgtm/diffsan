@@ -15,7 +15,7 @@ This document describes how `diffsan` integrates with GitLab in **CI Merge Reque
 ### MVP: Project Access Token
 
 - `diffsan` uses a **Project Access Token** (bot user) provided via an env var.
-- Config field: `gitlab.token_env` (default `GITLAB_TOKEN`).
+- Config field: `gitlab.token_env` (default `DIFFSAN_GITLAB_TOKEN`).
 
 **Required scopes/permissions**
 
