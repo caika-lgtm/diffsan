@@ -1,0 +1,34 @@
+docs/configuration.md
+  s_d4c1f1f0b04f42::t_a32a9a5405a339 376
+  s_d4c1f1f0b04f42::t_20507329b6f9f0 172,266
+docs/design/06-gitlab-integration.md
+  s_d4c1f1f0b04f42::t_20507329b6f9f0 18
+PLAN.md
+  s_d4c1f1f0b04f42::t_20507329b6f9f0 237
+src/diffsan/contracts/models.py
+  s_d4c1f1f0b04f42::t_20507329b6f9f0 101
+docs/index.md
+  s_d4c1f1f0b04f42::t_20507329b6f9f0 49,84
+docs/design/02-contracts-and-schemas.md
+  s_d4c1f1f0b04f42::t_20507329b6f9f0 86
+README.md
+  s_d4c1f1f0b04f42::t_20507329b6f9f0 47,82
+tests/test_config.py
+  s_d4c1f1f0b04f42::t_a32a9a5405a339 35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "d8af04662a78c9e52a95df42677f41e60e09cb8d",
+  "prompts": {},
+  "sessions": {
+    "s_d4c1f1f0b04f42": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3f38-538c-7832-a773-9fb2c9aa40e4",
+        "model": "gpt-5.5"
+      },
+      "human_author": "kaian <caika@sea.com>"
+    }
+  }
+}
