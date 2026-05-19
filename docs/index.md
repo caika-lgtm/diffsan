@@ -46,7 +46,7 @@
   - `cursor-agent`, or
   - `codex`
 - GitLab API access via a token in the env var configured by `gitlab.token_env`
-  (defaults to `GITLAB_TOKEN`)
+  (defaults to `DIFFSAN_GITLAB_TOKEN`)
 - If you select the Cursor backend, `CURSOR_API_KEY` must be set unless your
   runner already has Cursor CLI auth configured
 
@@ -81,7 +81,7 @@ project, and plan to use the default `codex` agent backend.
    <https://docs.gitlab.com/ci/variables/#for-a-project>
 
    Under `Settings > CI/CD > Variables > Add variable`:
-   - `Key`: `GITLAB_TOKEN`
+   - `Key`: `DIFFSAN_GITLAB_TOKEN`
    - `Value`: the token generated in step 1
    - Make sure `Protect variable` is unchecked
    - Make sure `Mask variable` is checked so the token does not leak in logs

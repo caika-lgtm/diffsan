@@ -234,5 +234,5 @@ MVP v0 is done when:
 - The tool should be installable via `pipx install diffsan`.
 - Default behavior should work with minimal config in GitLab CI:
   - relies on standard MR CI variables
-  - requires `GITLAB_TOKEN` (project access token) when posting is enabled
+  - requires `DIFFSAN_GITLAB_TOKEN` (project access token) when posting is enabled
 - Always write artifacts early and often; never lose prompt/raw output on failure.

@@ -83,7 +83,7 @@ Fields are grouped for clarity. Exact defaults are implementation-defined but sh
     "base_url": "https://gitlab.com",
     "project_id": "12345",
     "mr_iid": 67,
-    "token_env": "GITLAB_TOKEN",
+    "token_env": "DIFFSAN_GITLAB_TOKEN",
     "idempotent_summary": false,
     "summary_note_tag": "ai-reviewer",
     "retry_max": 3

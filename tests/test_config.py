@@ -32,6 +32,7 @@ def test_load_config_uses_defaults_without_file(
     assert loaded.config.note_timezone
     assert loaded.config.mode.ci is False
     assert loaded.config.agent.agent == "codex"
+    assert loaded.config.gitlab.token_env == "DIFFSAN_GITLAB_TOKEN"
 
 
 def test_load_config_reads_default_file(

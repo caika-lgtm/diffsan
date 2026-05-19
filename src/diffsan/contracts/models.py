@@ -98,7 +98,7 @@ class GitLabConfig(StrictModel):
     base_url: str = "https://gitlab.com"
     project_id: str | None = None
     mr_iid: int | None = None
-    token_env: str = "GITLAB_TOKEN"
+    token_env: str = "DIFFSAN_GITLAB_TOKEN"
     idempotent_summary: bool = False
     summary_note_tag: str = "ai-reviewer"
     retry_max: int = 3

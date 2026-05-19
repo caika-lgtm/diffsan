@@ -169,7 +169,7 @@ Validation rule:
 | `gitlab.base_url` | `str` | `https://gitlab.com` | Base GitLab URL. Can be a site root or an `/api/v4` URL. In CI, `CI_API_V4_URL` takes precedence when present. |
 | `gitlab.project_id` | `str \| null` | `null` | GitLab project identifier. If unset, diffsan falls back to `CI_PROJECT_ID`. |
 | `gitlab.mr_iid` | `int \| null` | `null` | Merge request IID. If unset, diffsan falls back to `CI_MERGE_REQUEST_IID`. |
-| `gitlab.token_env` | `str` | `GITLAB_TOKEN` | Name of the environment variable that contains the GitLab token. |
+| `gitlab.token_env` | `str` | `DIFFSAN_GITLAB_TOKEN` | Name of the environment variable that contains the GitLab token. |
 | `gitlab.idempotent_summary` | `bool` | `false` | Included in post planning metadata, but current posting still creates a new summary note each run. |
 | `gitlab.summary_note_tag` | `str` | `ai-reviewer` | Marker used to locate prior diffsan summary notes. |
 | `gitlab.retry_max` | `int` | `3` | Maximum GitLab API attempts for retryable failures such as `429`, `5xx`, and transient network errors. |
@@ -263,7 +263,7 @@ Some runtime inputs are not part of the config schema but are still required for
 By default:
 
 ```bash
-export GITLAB_TOKEN="..."
+export DIFFSAN_GITLAB_TOKEN="..."
 ```
 
 ### GitLab CI variables
@@ -373,7 +373,7 @@ Prefer findings that are actionable for this merge request.
 [gitlab]
 enabled = true
 base_url = "https://gitlab.example.com"
-token_env = "GITLAB_TOKEN"
+token_env = "DIFFSAN_GITLAB_TOKEN"
 summary_note_tag = "team-diffsan"
 retry_max = 5
 ```
