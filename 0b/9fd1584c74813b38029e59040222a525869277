@@ -1,0 +1,21 @@
+src/diffsan/__init__.py
+  s_97072d3ad8b75b::t_d68581a532093f 3
+pyproject.toml
+  s_97072d3ad8b75b::t_d241664bf94c96 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "0b9fd1584c74813b38029e59040222a525869277",
+  "prompts": {},
+  "sessions": {
+    "s_97072d3ad8b75b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e447c-e6b2-7c50-99fa-6506e4c6a298",
+        "model": "gpt-5.5"
+      },
+      "human_author": "kaian <caika@sea.com>"
+    }
+  }
+}
