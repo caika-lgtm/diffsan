@@ -1,0 +1,10 @@
+# PySentry security audit configuration.
+version = 1
+
+[defaults]
+fail_on = "medium"
+
+[ignore]
+# Markdown 3.10.2 is the latest PyPI release as of 2026-05-20, and
+# PYSEC-2026-89 is currently reported by PySentry as having no fix.
+while_no_fix = ["PYSEC-2026-89"]
