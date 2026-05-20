@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "diffsan"
-version = "0.1.0"
+version = "0.2.4"
 description = "A Python CLI tool for AI-assisted code reviews in CI pipelines."
 readme = "README.md"
 license = "Apache-2.0"
