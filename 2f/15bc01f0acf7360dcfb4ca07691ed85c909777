@@ -1,0 +1,21 @@
+.pysentry.toml
+  s_d3a0a0537c550e::t_aa2e447423a63b 1-10
+pyproject.toml
+  s_d3a0a0537c550e::t_b75cc344c95b13 45,49-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "2f15bc01f0acf7360dcfb4ca07691ed85c909777",
+  "prompts": {},
+  "sessions": {
+    "s_d3a0a0537c550e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4474-168e-70e1-933b-5e9df001f5a1",
+        "model": "gpt-5.5"
+      },
+      "human_author": "kaian <caika@sea.com>"
+    }
+  }
+}
